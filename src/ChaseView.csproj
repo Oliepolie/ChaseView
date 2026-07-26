@@ -1,0 +1,121 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ChaseView</AssemblyName>
+    <RootNamespace>ChaseView</RootNamespace>
+    <Version>1.0.0</Version>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GameDir>C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option</GameDir>
+    <ManagedDir>$(GameDir)\NuclearOption_Data\Managed</ManagedDir>
+    <BepInExCoreDir>$(GameDir)\BepInEx\core</BepInExCoreDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PerfProbe is a development diagnostic and is NOT compiled into releases. The source stays in
+         the tree deliberately: the chase-vs-cockpit frame cost question is still open, and comment
+         this line out to build a measuring copy. Deleting it would mean rewriting it from scratch. -->
+    <Compile Remove="Features\PerfProbe\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- Publicizes Assembly-CSharp at COMPILE time only; nothing about the shipped DLL changes.
+         This is why features can read [SerializeField]/private game state (Building.repairTime,
+         CameraChaseState.showHUD) as plain field access instead of reflection. -->
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp" Publicize="true">
+      <HintPath>$(ManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- TrackIRComponent lives HERE, not in Assembly-CSharp - the main assembly only references it
+         (CameraCockpitState, CameraStateManager.trackIRComponent). Easy to lose an hour to. -->
+    <Reference Include="Assembly-CSharp-firstpass" Publicize="true">
+      <HintPath>$(ManagedDir)\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Canvas / Toggle / Slider. Note EventSystems lives INSIDE UnityEngine.UI.dll in this
+         install - there is no separate EventSystems assembly. -->
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- All in-game text is TextMeshPro. -->
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(ManagedDir)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- GUI/GUIStyle/GUILayout for IMGUI readouts, and TextAnchor/FontStyle which GUIStyle needs.
+         Unity forwards these types out of UnityEngine.dll, so referencing UnityEngine is not enough. -->
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Raw Input.GetKey, for our OWN hotkeys only. Player bindings are Rewired and a raw poll
+         cannot see them - see Rewired_Core below. -->
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(ManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- GameManager.playerInput is a Rewired.Player. Every player-facing binding goes through
+         Rewired, so a mod hotkey using raw Input can never appear in the keybind menu. Needed to
+         READ the player's own bindings (e.g. "is the FOV axis being moved"). -->
+    <Reference Include="Rewired_Core">
+      <HintPath>$(ManagedDir)\Rewired_Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Needed to compile against anything touching NetworkBehaviour / SyncVar / Server.Active,
+         which includes simply READING replicated state to decide whether a readout is trustworthy. -->
+    <Reference Include="Mirage">
+      <HintPath>$(ManagedDir)\Mirage.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCoreDir)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExCoreDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Rigidbody. ChaseCamera reads CameraStateManager.followingRB to detect the frame where
+         UpdateState early-returned; touching a member whose TYPE lives here needs the reference
+         even though we never call a physics API ourselves. -->
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(ManagedDir)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Add when a feature actually needs them; an unused reference costs nothing but churn:
+    <Reference Include="UnityEngine.AssetBundleModule"> ... only if we ever ship an asset (we aim not to)
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime"> ... post-processing / URP volumes
+    -->
+  </ItemGroup>
+
+</Project>

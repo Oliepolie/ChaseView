@@ -1,0 +1,22 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Release artifacts are attached to GitHub Releases, not tracked in git.
+*.zip
+
+# Build output staged for packaging. meta.json is the NOMM manifest and IS worth
+# keeping; the staged folder and the zip beside it are regenerated every time.
+release/*
+!release/meta.json
+
+# Local captures and backups.
+*.bak
+
+# Local scratch: decompiles, probe dumps, captured logs. Useful while working,
+# misinformation to anyone who finds them six months later.
+scratch/
+decomp/
+*.log
