@@ -1,0 +1,33 @@
+{
+  "id": "ChaseView",
+  "displayName": "ChaseView",
+  "description": "A proper third-person chase camera, with the HUD. Nuclear Option already has a chase camera but won't show the HUD from it, won't let head tracking look around from it, and won't let you aim a turret from it. ChaseView fixes all three, slots chase into the Switch View cycle right after the cockpit, and frames every aircraft consistently using its real dimensions. Optional Ace Combat style weapon readout and always-on damage diagram, both off by default. Client-side only.",
+  "tags": [
+    "mod",
+    "QoL",
+    "HUD"
+  ],
+  "urls": [
+    {
+      "name": "info",
+      "url": "https://github.com/Oliepolie/ChaseView/blob/main/README.md"
+    }
+  ],
+  "authors": [
+    "Oliepolie"
+  ],
+  "githubOwner": "Oliepolie",
+  "githubRepoName": "ChaseView",
+  "autoUpdateArtifacts": "True",
+  "artifacts": [
+    {
+      "fileName": "ChaseView-1.0.0.zip",
+      "version": "1.0.0",
+      "category": "release",
+      "type": "plugin",
+      "gameVersion": "0.33",
+      "downloadUrl": "https://github.com/Oliepolie/ChaseView/releases/download/v1.0.0/ChaseView-1.0.0.zip",
+      "hash": "sha256:80ffef90d5769f658c0ca5153d81d57ac0be11f17bf146948447f4afbe220a5f"
+    }
+  ]
+}

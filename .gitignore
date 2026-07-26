@@ -11,6 +11,7 @@ obj/
 # keeping; the staged folder and the zip beside it are regenerated every time.
 release/*
 !release/meta.json
+!release/ChaseView.json
 
 # Local captures and backups.
 *.bak
