@@ -118,6 +118,3 @@ dotnet build -c Release
 
 Adjust `<GameDir>` in `src/ChaseView.csproj` if your install is elsewhere.
 
-## Credit
-
-Split out of TrueQoL, which keeps the non-camera quality-of-life features.
