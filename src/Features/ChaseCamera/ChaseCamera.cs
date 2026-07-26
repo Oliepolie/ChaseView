@@ -55,10 +55,11 @@ namespace ChaseView.Features
         private ConfigEntry<bool> _autoFraming;
         private ConfigEntry<float> _screenFill;
         private ConfigEntry<float> _elevation;
-        private ConfigEntry<float> _lookDown;
         private ConfigEntry<float> _reticleClearance;
         private ConfigEntry<float> _momentum;
         private static ConfigEntry<float> Momentum;
+        private ConfigEntry<bool> _mouseLook;
+        private static ConfigEntry<bool> MouseLook;
         private ConfigEntry<bool> _inViewCycle;
         private static ConfigEntry<bool> InViewCycle;
 
@@ -75,7 +76,6 @@ namespace ChaseView.Features
         private static ConfigEntry<bool> AutoFraming;
         private static ConfigEntry<float> ScreenFill;
         private static ConfigEntry<float> Elevation;
-        private static ConfigEntry<float> LookDown;
         private static ConfigEntry<float> ReticleClearance;
 
         protected override void BindOptions(ConfigFile config)
@@ -88,6 +88,11 @@ namespace ChaseView.Features
 
             _inViewCycle = config.Bind(Name, "InViewCycle", true, Cfg.Basic(
                 "Put chase view in the Switch View cycle, right after the cockpit.", 0));
+            _mouseLook = config.Bind(Name, "MouseLook", true, Cfg.Basic(
+                "Look around in chase view with your Pan/Tilt View bindings, exactly as the "
+              + "cockpit does. Uses the game's own sensitivity, inversion and smoothing.", 11));
+            MouseLook = _mouseLook;
+
             InViewCycle = _inViewCycle;
 
             _momentum = config.Bind(Name, "Momentum", 0f, Cfg.Basic(
@@ -131,10 +136,9 @@ namespace ChaseView.Features
                 "How much of the screen the aircraft fills.",
                 new AcceptableValueRange<float>(0.1f, 1f), 6));
 
-            _elevation = config.Bind(Name, "Elevation", 8f, Cfg.Basic("Degrees the camera sits above the aircraft.", new AcceptableValueRange<float>(0f, 45f), 7));
-
-            _lookDown = config.Bind(Name, "LookDownAngle", 6f, Cfg.Basic("Degrees the camera tilts down the flight path.", new AcceptableValueRange<float>(0f, 30f), 8));
-
+            _elevation = config.Bind(Name, "Elevation", 8f, Cfg.Basic(
+                "Degrees the camera sits above the aircraft.",
+                new AcceptableValueRange<float>(0f, 45f), 7));
 
             _reticleClearance = config.Bind(Name, "ReticleClearance", 1f, Cfg.Adv("Minimum camera height above the aircraft, so the tail cannot block the aiming reticle.", new AcceptableValueRange<float>(0f, 3f)));
 
@@ -166,13 +170,13 @@ namespace ChaseView.Features
             AutoFraming = _autoFraming;
             ScreenFill = _screenFill;
             Elevation = _elevation;
-            LookDown = _lookDown;
             ReticleClearance = _reticleClearance;
         }
 
         public override void DumpResolved(Action<string, object> kv)
         {
             kv("InViewCycle", _inViewCycle.Value);
+            kv("MouseLook", _mouseLook.Value);
             kv("ShowHudInChase", _showHud.Value);
             kv("HudInAllPositions", _hudInAllPositions.Value);
             kv("ScreenLockReadouts", _screenLockReadouts.Value);
@@ -188,7 +192,6 @@ namespace ChaseView.Features
             kv("AutoFraming", _autoFraming.Value);
             kv("ScreenFill", _screenFill.Value);
             kv("Elevation", _elevation.Value);
-            kv("LookDownAngle", _lookDown.Value);
             kv("ReticleClearance", _reticleClearance.Value);
             // Vanilla's own switch. Worth in the dump because "TrackIR does nothing" is almost always
             // this being off, and without the line the report is a guessing game.
@@ -262,6 +265,9 @@ namespace ChaseView.Features
             /// own result back in as next frame's input, and the correction compounds.
             /// </summary>
             internal static Quaternion CleanLocalRotation = Quaternion.identity;
+            private static float _pan, _tilt;              // applied, smoothed
+            private static float _panTarget, _tiltTarget;  // accumulated from the axes
+            private static bool _loggedLook;
             internal static bool HaveClean;
 
             /// <summary>
@@ -272,15 +278,33 @@ namespace ChaseView.Features
             /// vanilla sends it, because we only rewrite a destination we recognise arriving from a
             /// source we recognise.
             /// </summary>
-            internal static void SwitchState_Pre(CameraStateManager __instance, ref CameraBaseState state)
+            internal static bool SwitchState_Pre(CameraStateManager __instance, ref CameraBaseState state)
             {
-                if (!InViewCycle.Value || state == null) return;
+                if (state == null) return true;
 
                 var cur = __instance.currentState;
+
+                // #center-recentres-first
+                //   In chase, vanilla's "Center" LEAVES for the orbit camera - it is the same button
+                //   that got you into chase from orbit, so it toggles. Players press it expecting the
+                //   VIEW to recentre and lose the camera mode instead. Off-centre, the first press now
+                //   zeroes the look target and the smoothing lerp pans it home; once centred, a second
+                //   press exits exactly as vanilla does. The exit is preserved - it just no longer
+                //   costs you your place.
+                if (cur == __instance.chaseState && state == __instance.orbitState
+                    && (_panTarget != 0f || _tiltTarget != 0f))
+                {
+                    _panTarget = 0f; _tiltTarget = 0f;
+                    return false;
+                }
+
+                if (!InViewCycle.Value) return true;
                 if (cur == __instance.cockpitState && state == __instance.orbitState)
                     state = __instance.chaseState;          // cockpit -> chase, instead of straight to orbit
                 else if (cur == __instance.chaseState && state == __instance.TVState)
                     state = __instance.orbitState;          // chase -> orbit, so orbit is not skipped
+
+                return true;
             }
 
             internal static void EnterState_Post(CameraChaseState __instance, CameraStateManager cam)
@@ -331,16 +355,24 @@ namespace ChaseView.Features
 
                 float d = Distance.Value, h = Height.Value;
 
-                // Aim: vanilla's targetVector is the LOCAL-space direction the pivot looks along, and
-                // for the Back view it is plain Vector3.forward - i.e. parallel to the nose. Tilting it
-                // down is what turns "behind the aircraft" into "above the tail, looking down the
-                // flight path". Driving their field means their own smoothing still applies.
-                float down = Mathf.Clamp(LookDown.Value, 0f, 30f);
-                if (down > 0.01f)
-                {
-                    float r = down * Mathf.Deg2Rad;
-                    __instance.targetVector = new Vector3(0f, -Mathf.Sin(r), Mathf.Cos(r));
-                }
+                // #aim-at-reticle
+                //   vanilla's targetVector is the LOCAL-space direction the pivot looks along, and for
+                //   the Back view it is plain Vector3.forward. Point it at the RETICLE'S OWN WORLD
+                //   ANCHOR instead - FlightHud pins the reticle to cockpit.position +
+                //   cockpit.forward * 4000f - so "centred" means the reticle is at screen centre by
+                //   construction, at any camera height and on any airframe.
+                //
+                //   This replaced a fixed look-down tilt. That tilt aimed BELOW the flight path to show
+                //   ground ahead, which necessarily pushed the reticle off centre by the same angle -
+                //   the two cannot both be true, and aiming where you shoot won. Driving vanilla's own
+                //   field means its smoothing still applies rather than us fighting it.
+                Transform aimRef = cam.followingUnit is Aircraft rac && rac.cockpit != null
+                    ? rac.cockpit.transform : cam.followingUnit.transform;
+                Vector3 anchor = aimRef.position + aimRef.forward * 4000f;
+                Vector3 toAnchor = anchor - cam.transform.position;
+                if (toAnchor.sqrMagnitude > 1f)
+                    __instance.targetVector =
+                        cam.followingUnit.transform.InverseTransformDirection(toAnchor.normalized);
 
                 if (AutoFraming.Value && TryAutoFrame(cam, d, h, out Vector3 auto))
                 {
@@ -483,6 +515,60 @@ namespace ChaseView.Features
 
                 Quaternion final = reaim ? reaimed : CleanLocalRotation;
 
+                // #mouselook-mirrors-cockpit
+                //   A faithful copy of CameraCockpitState's free-look, because anything else feels
+                //   wrong sitting next to it. The part earlier attempts of mine missed: the cockpit
+                //   does NOT apply the accumulated angles directly. It accumulates a TARGET and lerps
+                //   the applied angle toward it by min(2*dt / viewSmoothing, 1). That one lerp is
+                //   where all the smoothness lives - and it smooths recentring for free, because
+                //   "Center" only has to set the target to zero.
+                //
+                //   Consequences, all deliberate: no idle auto-recentre, so the view stays where you
+                //   put it just as in the cockpit; sensitivity, pitch inversion and smoothing come
+                //   from the player's own game settings rather than knobs of ours; and Free Look is
+                //   required only when the virtual joystick is enabled, which is vanilla's own rule.
+                if (MouseLookActive())
+                {
+                    bool vj = PlayerSettings.virtualJoystickEnabled;
+                    if (!vj || GameManager.playerInput.GetButton("Free Look"))
+                    {
+                        float rate = 120f * PlayerSettings.viewSensitivity * Time.unscaledDeltaTime;
+                        _panTarget  += GameManager.playerInput.GetAxis("Pan View")  * rate;
+                        _tiltTarget += GameManager.playerInput.GetAxis("Tilt View") * rate
+                                     * (PlayerSettings.viewInvertPitch ? -1f : 1f);
+                    }
+                    else { _panTarget = 0f; _tiltTarget = 0f; }   // vanilla's virtual-joystick release
+
+                    _panTarget  = Mathf.Clamp(_panTarget, -165f, 165f);
+                    _tiltTarget = Mathf.Clamp(_tiltTarget, -65f, 65f);
+
+                    float k = Mathf.Min(2f * Time.unscaledDeltaTime
+                                        / Mathf.Max(PlayerSettings.viewSmoothing, 0.01f), 1f);
+                    _pan  = Mathf.Lerp(_pan,  _panTarget,  k);
+                    _tilt = Mathf.Lerp(_tilt, _tiltTarget, k);
+
+                    // Settle exactly, so a centred view drops the composed rotation entirely instead
+                    // of trailing an ever-smaller offset forever.
+                    if (_panTarget  == 0f && Mathf.Abs(_pan)  < 0.05f) _pan  = 0f;
+                    if (_tiltTarget == 0f && Mathf.Abs(_tilt) < 0.05f) _tilt = 0f;
+
+                    if (_pan != 0f || _tilt != 0f)
+                    {
+                        final = final * Quaternion.Euler(_tilt, _pan, 0f);
+
+                        // Proof-of-life, once: separates a dead gate from an unbound axis.
+                        if (!_loggedLook)
+                        {
+                            _loggedLook = true;
+                            Plugin.Log.LogInfo("[ChaseCamera] mouse look active (sens "
+                                             + PlayerSettings.viewSensitivity.ToString("0.##")
+                                             + ", smoothing "
+                                             + PlayerSettings.viewSmoothing.ToString("0.##") + ")");
+                        }
+                    }
+                }
+                else { _pan = _tilt = _panTarget = _tiltTarget = 0f; }
+
                 if (TrackIrActive())
                 {
                     // GetTrackIROffset returns the ABSOLUTE head pose; its arguments are only the
@@ -503,6 +589,20 @@ namespace ChaseView.Features
                 cam.transform.localRotation = final;
             }
 
+/// <summary>
+            /// Composes WITH TrackIR rather than deferring to it: an earlier version returned false
+            /// whenever TrackIR was enabled, which meant that on any machine with UseTrackIR=1 - a
+            /// setting made once in the game's own options - mouse look was dead, and no ChaseView
+            /// toggle could revive it. Cursor and map guards mirror vanilla's.
+            /// </summary>
+            private static bool MouseLookActive()
+            {
+                if (!MouseLook.Value) return false;
+                if (!GameManager.flightControlsEnabled) return false;
+                if (Cursor.visible || DynamicMap.mapMaximized) return false;
+                return true;
+            }
+
             private static bool TrackIrActive() => TrackIr.Value && PlayerSettings.useTrackIR;
 
             /// <summary>
@@ -519,8 +619,8 @@ namespace ChaseView.Features
                 if (cam == null || cam.followingRB == null) return false;
 
                 return TrackIrActive()
+                    || MouseLook.Value
                     || AutoFraming.Value
-                    || LookDown.Value > 0.01f
                     || RollFollow.Value < 0.999f
                     || VelocityAlign.Value > 0.001f
                     || Momentum.Value > 0.001f

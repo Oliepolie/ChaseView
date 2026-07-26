@@ -33,7 +33,14 @@ tracking look around from it, and won't let you aim a turret from it. ChaseView 
   external view the turret holds a fixed compass bearing and ends up pointing the wrong way as you
   turn. ChaseView aims it at the point you're actually looking at, and puts the crosshair there too.
 
-- **TrackIR free-look**, which vanilla applies in the cockpit only.
+- **Free look**, with the mouse or a stick, mirroring the cockpit exactly — it accumulates a target
+  and lerps toward it using your own `viewSmoothing`, so it feels identical. `Center` recentres rather
+  than dumping you out to the orbit camera. TrackIR works too, and composes with it; vanilla applies
+  head tracking in the cockpit only.
+
+- **The camera aims at the reticle**, computed from the reticle's own world anchor
+  (`cockpit.forward * 4000f`) rather than a fixed angle — so recentred means the reticle is at screen
+  centre on any airframe, at any camera height.
 
 ## Getting there
 
@@ -71,7 +78,7 @@ Every feature has its own `Enabled` toggle. The ones worth knowing:
 | `WeaponPanel / ShowWeaponList` | `true` | The weapon readout, separate from the diagram |
 | `ChaseCamera / ScreenFill` | `0.35` | How much of the screen height the aircraft spans |
 | `ChaseCamera / Elevation` | `8°` | Degrees above the centreline the camera sits |
-| `ChaseCamera / LookDownAngle` | `6°` | Tilt down the flight path, so you sit above the tail |
+| `ChaseCamera / MouseLook` | `true` | Look around with your Pan/Tilt View bindings, as the cockpit does |
 | `ChaseCamera / ReticleClearance` | `1.0` | Keeps the airframe out of the sightline to the reticle |
 | `ChaseCamera / RollFollow` | `1.0` | `1` welds the camera to the airframe, `0` keeps the horizon level |
 | `ChaseCamera / VelocityAlign` | `0.0` | Aim toward the velocity vector — the high-AOA knob |
