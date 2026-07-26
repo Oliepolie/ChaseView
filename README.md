@@ -1,7 +1,7 @@
 # ChaseView
 Chase style camera, complete with HUD, optional weapon select flavor graphics (and damage model); works with (probably) every aircraft.
 
-### Coded entirely with Opus 5
+## Coded entirely with Claude Opus 5
 I have zero programming or coding experience and as such, can't really give the code a once over. USE AT YOUR OWN RISK!
 
 ## How do you use it?
