@@ -4,6 +4,11 @@ Chase style camera, complete with HUD, optional weapon select flavor graphics (a
 ## Coded entirely with Claude Opus 5
 I have zero programming or coding experience and as such, can't really give the code a once over. USE AT YOUR OWN RISK!
 
+## Requirements
+BepInEx 5 (Mono, x64) - the Mono build, not Il2Cpp.
+
+Drop the `ChaseView` folder into `<game>/BepInEx/plugins/` so you end up with `BepInEx/plugins/ChaseView/ChaseView.dll`.
+
 ## How do you use it?
 Press whatever key you have bound to Switch View. Its the view right after cockpit. 
 
