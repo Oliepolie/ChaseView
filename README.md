@@ -8,4 +8,4 @@ I have zero programming or coding experience and as such, can't really give the 
 Its optional, press F1 to access the BepinEx configuration menu and you can enable the changes there... optionally 
 
 ## Examples:
-[https://imgur.com/a/j8kflUH](https://github.com/Oliepolie/ChaseView/blob/main/RevokerChaseViewExample4.gif)
+https://github.com/Oliepolie/ChaseView/blob/main/RevokerChaseViewExample4.gif
