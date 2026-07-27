@@ -45,6 +45,7 @@ namespace ChaseView.Features
         private ConfigEntry<bool> _hudInAllPositions;
         private ConfigEntry<bool> _screenLockReadouts;
         private ConfigEntry<bool> _screenLockCompass;
+        private ConfigEntry<float> _hudScale;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
         private ConfigEntry<bool> _trackIr;
         private ConfigEntry<float> _trackIrAmount;
@@ -85,6 +86,12 @@ namespace ChaseView.Features
             _screenLockReadouts = config.Bind(Name, "ScreenLockReadouts", true, Cfg.Basic("Keep speed, altitude and the other readouts still instead of following the nose.", 2));
 
             _screenLockCompass = config.Bind(Name, "ScreenLockCompass", true, Cfg.Basic("Pin the heading tape to the top of the screen.", 3));
+
+            // #hud-scale - see ScreenLockedReadouts for why this cannot touch the aiming furniture.
+            _hudScale = config.Bind(Name, "HudScale", 1f, Cfg.Basic(
+                "Size of the speed, altitude and heading readouts in chase view. Below 1 tucks them "
+              + "in toward the middle of the screen, above 1 makes them larger. Needs ScreenLockReadouts.",
+                new AcceptableValueRange<float>(0.5f, 2f), 8));
 
             _inViewCycle = config.Bind(Name, "InViewCycle", true, Cfg.Basic(
                 "Put chase view in the Switch View cycle, right after the cockpit.", 0));
@@ -156,10 +163,12 @@ namespace ChaseView.Features
 
             ScreenLockedReadouts.WantScreenLock = _screenLockReadouts.Value;
             ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
+            ScreenLockedReadouts.WantScale = _hudScale.Value;
             // Live-editable through ConfigurationManager: mirror later changes too, so toggling the
             // split mid-flight takes effect instead of needing a restart.
             _screenLockReadouts.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScreenLock = _screenLockReadouts.Value;
             _screenLockCompass.SettingChanged += (s2, e) => ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
+            _hudScale.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScale = _hudScale.Value;
 
             ShowHud = _showHud;
             HudInAllPositions = _hudInAllPositions;
@@ -183,6 +192,7 @@ namespace ChaseView.Features
             kv("HudInAllPositions", _hudInAllPositions.Value);
             kv("ScreenLockReadouts", _screenLockReadouts.Value);
             kv("ScreenLockCompass", _screenLockCompass.Value);
+            kv("HudScale", _hudScale.Value);
             kv("ToggleHudKey", _toggleKey.Value);
             kv("TrackIrInChase", _trackIr.Value);
             kv("TrackIrAmount", _trackIrAmount.Value);

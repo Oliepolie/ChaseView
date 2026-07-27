@@ -55,6 +55,25 @@ namespace ChaseView.Features
         internal static bool WantScreenLock;
         internal static bool WantCompassLock;
 
+        /// <summary>
+        /// #hud-scale
+        ///   Scales the screen-locked half of the HUD about screen centre. Because the children keep
+        ///   the anchoredPositions they were authored with, one localScale on the anchor moves them
+        ///   AND resizes them together: below 1 draws the readouts in toward the middle and shrinks
+        ///   them, above 1 pushes them out and enlarges them. Two useful behaviours, one number.
+        ///
+        ///   This can only ever touch what we already moved. The aiming furniture - pitch ladder,
+        ///   waterline, boresight reticle - stays under vanilla's HUDCenter and MUST stay unscaled:
+        ///   the reticle's screen position IS the aim point, computed from a world anchor 4 km down
+        ///   the nose, so scaling it about screen centre would move the crosshair off where the guns
+        ///   actually point. That is a silent accuracy bug, and it is why this is not simply applied
+        ///   to HUDCenter itself.
+        /// </summary>
+        internal static float WantScale = 1f;
+
+        /// <summary>HUDCenter's own localScale, so our factor multiplies the canvas rather than replacing it.</summary>
+        private Vector3 _baseScale = Vector3.one;
+
         private void Update()
         {
             // Bypass must not strand a half-reparented HUD, so it takes the Restore path rather than
@@ -81,6 +100,12 @@ namespace ChaseView.Features
             // a resolution change or an alt-tab without needing an event we would have to find first.
             _anchor.position = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f);
             _anchor.rotation = Quaternion.identity;
+
+            // Re-applied every frame for the same reason the position is: it costs nothing, and it
+            // makes the ConfigurationManager slider live so the scale can be dialled in while flying,
+            // which is the only way anyone arrives at a value they actually like. Clamped wider than
+            // the config's own range so a hand-edited .cfg cannot produce a zero-scale invisible HUD.
+            _anchor.localScale = _baseScale * Mathf.Clamp(WantScale, 0.1f, 4f);
 
             // The readout panel. Re-resolved every frame because the aircraft's panel is destroyed and
             // re-instantiated under HUDCenter on every aircraft change - a cached reference would be a
@@ -132,7 +157,8 @@ namespace ChaseView.Features
             _anchor.anchorMax = hudCenterRect.anchorMax;
             _anchor.pivot = hudCenterRect.pivot;
             _anchor.sizeDelta = hudCenterRect.sizeDelta;
-            _anchor.localScale = hudCenterRect.localScale;
+            _baseScale = hudCenterRect.localScale;
+            _anchor.localScale = _baseScale;
 
             // Directly after HUDCenter in the hierarchy, so draw order relative to the rest of the HUD
             // is what it was. Canvas children render in sibling order.
