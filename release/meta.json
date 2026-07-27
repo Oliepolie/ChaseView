@@ -7,7 +7,7 @@
         "type": "plugin",
         "gameVersion": "0.34",
         "downloadUrl": "https://github.com/Oliepolie/ChaseView/releases/download/v1.1.0/ChaseView-1.1.0.zip",
-        "hash": "sha256:974e573f6c7278ea9b6ce84c88831150614e9f397db1ce83bf392b65d54f1828",
+        "hash": "sha256:aae68ea57f93cfe6046ccc954fa8ff7e35f0c364dcb541d14da24299130c8863",
         "extends": null,
         "dependencies": [],
         "incompatibilities": []

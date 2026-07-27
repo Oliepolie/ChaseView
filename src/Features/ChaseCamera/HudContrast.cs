@@ -198,7 +198,17 @@ namespace ChaseView.Features
         private bool EnsureGraphics()
         {
             HUDAppManager mgr = SceneSingleton<HUDAppManager>.i;
-            if (_graphics != null && _cachedFor == mgr && mgr != null) return true;
+            // #cache-null-manager
+            //   Deliberately NOT `&& mgr != null`. With that clause a missing HUDAppManager meant the
+            //   cache was never accepted, so every frame in chase re-walked the hierarchy, allocated a
+            //   HashSet and three arrays, and logged a line - breaking the #perf-treewalk rule this
+            //   method's own summary cites. And it is reachable, not theoretical: some airframes ship
+            //   no HUDExtras panel at all, and HUDAppManager destroys itself on aircraft disable.
+            //
+            //   Unity's == treats two fake-nulls as equal, so null == null keeps the cache and stays
+            //   quiet. A DESTROYED manager is still handled: the per-element null check in ApplyColour
+            //   clears _cachedFor, which forces exactly one rebuild on the next frame.
+            if (_graphics != null && _cachedFor == mgr) return true;
 
             FlightHud hud = SceneSingleton<FlightHud>.i;
             if (hud == null) return false;
