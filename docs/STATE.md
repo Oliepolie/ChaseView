@@ -173,8 +173,15 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
   free on an already-opaque HUD because it writes nothing when the transform is a no-op, and a
   skipped write means no `SetVerticesDirty` and no canvas rebuild — but that is reasoning, not a
   measurement, and it is exactly what the probe is for.
-- The repo has **no LICENSE** — source-available, not open-source. Fine for NOMNOM (their clause is
-  about visibility and non-obfuscation) and normal for the ecosystem, but nobody may legally fork it.
+- **Licensed MIT** (2026-07-27, `LICENSE` at the repo root). Genuinely open source, not merely
+  source-available: forks, patches and redistribution are all permitted with attribution. Clean to
+  apply because nothing third-party is vendored or shipped — every source file is first-party, the
+  game/BepInEx/Harmony references are all `Private=false` so none are copied, and the release zip
+  contains exactly one file, our own DLL.
+
+  The zip itself does not carry a copy of LICENSE. Normal for a plugin DLL, and not worth re-cutting
+  1.1.0 for since that would change the asset hash and invalidate both manifests and the open PR —
+  but worth adding to the staging folder for the next release.
 - Olie's README says *"There is no targeting view, unless you switch back to your cockpit view."*
   There is — `Switch View` again from chase reaches TV, since the cycle is cockpit → chase → orbit → TV.
   His words, his call.
