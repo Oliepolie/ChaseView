@@ -48,12 +48,52 @@ Each has a `#tag` in the source; grep for it to find the reasoning at the site.
 | `#turret-parallax` / `#turret-reticle` | Turrets aim at the *point* the camera looks at, not parallel to it; the crosshair projects that same convergence point rather than 10 km down the barrel. |
 | `#gforce-not-a-cheat` | The G-force greyout is re-applied in chase. Vanilla runs the whole physiology camera-independently but gates only the *visuals* on the cockpit, so an external view flew the run-up to G-LOC with clean picture and clean audio. **No config toggle** — a checkbox that removes a penalty is the cheat. Lives in the ChaseCamera folder so it cannot be dropped without dropping the camera. |
 
+## Game update 2026-07-27 (Steam buildid 24403978) — BREAKS SHIPPED 1.0.0
+
+The game rewrote its assemblies at 00:31 local, mid-session. Previous game version was `0.33.4`;
+re-read `[env]` in the BepInEx log after the next launch for the new one and update `gameVersion` in
+both manifests if the major.minor moved off `0.33`.
+
+**What broke.** Head tracking was generalised behind `IHeadTracker` / `HeadTrackerManager` (TrackIR
+today; a `TobiiHeadTrackerComponent` exists but `ActiveTracker` does not yet return it).
+`TrackIRComponent.GetTrackIROffset` is **gone** — renamed to `GetHeadTrackerOffset`, not deprecated.
+ChaseView 1.0.0 calls the old name from `UpdateState_Post`, so on this build that postfix throws and
+its whole job — roll follow, mouse look, TrackIR, velocity align — stops. Fixed by going through
+`HeadTrackerManager.GetOffset`, which is what the cockpit now does and picks up any future tracker
+for free. See `#headtracker-manager`.
+
+**How compatibility was checked, and how to repeat it.** Two passes, because they catch different
+things:
+
+1. *Compile against the new DLLs.* The compiler mechanically verifies every type, member and
+   signature the mod references. This is what caught the rename. It does **not** check
+   string-based lookups — `AccessTools.Method(typeof(StatusDisplay), "Update")`,
+   `typeof(Turret), "FixedUpdate"`, and the `"compass"` field — so grep those and confirm by hand.
+   All three were verified present on this build.
+2. *Diff the decompiled classes we depend on behaviourally*, which the compiler cannot see.
+   Result this time: `GLOC` **byte-identical** (so `#gforce-not-a-cheat` is unaffected);
+   `FlightHud`'s `cockpit.forward * 4000f` reticle anchor unchanged (`#aim-at-reticle`,
+   `#reticle-clearance` hold); `Turret.GetDirection` identical and `FixedUpdate`'s three changes all
+   in the AI path, not manual aim (`#turret-parallax` holds); `GameplayUI.ResumeGame` and
+   `DynamicMap.Minimize` still gated on cockpit and still the only restore points, so
+   `#cockpit-only-restore` still covers everything. The rest was layer-mask constants, a Doppler
+   refactor, and a new `ThemeManager`.
+
+**Noted, not acted on:** the game now has a UI theme system (`ThemeManager.Active.ColorTheme`).
+WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic, not a break.
+
 ## Open
 
+- **A TEMPORARY TEST HARNESS IS COMPILED IN.** `GForceTestHarness.cs` injects 15G on LeftCtrl+G.
+  Before cutting any release: `grep -r GFORCE_TEST src` must come back **empty**. Removing it means
+  deleting the file, the `<DefineConstants>` PropertyGroup in the csproj, and the `#if` block in
+  `ChaseCamera.Apply`.
 - **`#gforce-not-a-cheat` is built and deployed but NOT yet flown** (v1.0.1, 2026-07-27). What to
   check: pull sustained Gs in chase and confirm the picture desaturates, vignettes and the audio
   muffles exactly as it does in the cockpit — then that it clears cleanly on switching away. Not
   released; 1.0.0 is still what NOMNOM serves.
+- **1.0.1 is now a compatibility release, not just a feature one.** 1.0.0 is broken on the current
+  game build (see above), so this should ship reasonably promptly once flown.
 - Olie's README should probably say the G-force effects apply in chase. **His prose, so his call** —
   ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen

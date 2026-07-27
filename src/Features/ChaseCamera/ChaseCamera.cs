@@ -105,7 +105,9 @@ namespace ChaseView.Features
 
             _toggleKey = config.Bind(Name, "ToggleHudKey", new KeyboardShortcut(KeyCode.None), Cfg.Adv("Optional key to toggle the chase HUD. Pick an UNBOUND key - it also fires whatever it is bound to."));
 
-            _trackIr = config.Bind(Name, "TrackIrInChase", true, Cfg.Basic("Let TrackIR look around from the chase camera. Needs TrackIR on in the game settings.", 4));
+            // Key name frozen - renaming it would orphan everyone's existing setting. The game calls
+            // this "head tracker" since the 2026-07-27 update; the description follows, the key does not.
+            _trackIr = config.Bind(Name, "TrackIrInChase", true, Cfg.Basic("Let head tracking (TrackIR) look around from the chase camera. Needs head tracking on in the game settings.", 4));
 
             _trackIrAmount = config.Bind(Name, "TrackIrAmount", 1f, Cfg.Adv("How far head movement swings the camera.", new AcceptableValueRange<float>(0f, 3f)));
 
@@ -193,9 +195,11 @@ namespace ChaseView.Features
             kv("ScreenFill", _screenFill.Value);
             kv("Elevation", _elevation.Value);
             kv("ReticleClearance", _reticleClearance.Value);
-            // Vanilla's own switch. Worth in the dump because "TrackIR does nothing" is almost always
-            // this being off, and without the line the report is a guessing game.
+            // Vanilla's own switches. Worth in the dump because "TrackIR does nothing" is almost
+            // always one of these, and without the lines the report is a guessing game. Both are
+            // needed since the 2026-07-27 update split "head tracking on" from "which tracker".
             kv("(game) PlayerSettings.useTrackIR", PlayerSettings.useTrackIR);
+            kv("(game) PlayerSettings.headTrackerType", PlayerSettings.headTrackerType);
         }
 
         public override void Apply(Harmony harmony)
@@ -246,6 +250,11 @@ namespace ChaseView.Features
             //   of its own - see GForceEffects for the full argument.
             harmony.Patch(AccessTools.Method(typeof(GLOC), nameof(GLOC.SimulateGLOC)),
                 postfix: Safe(typeof(GForceEffects), nameof(GForceEffects.SimulateGLOC_Post)));
+
+#if GFORCE_TEST
+            // TEMPORARY - remove with GForceTestHarness.cs and the csproj define once flown.
+            GForceTestHarness.Apply(harmony);
+#endif
 
             Plugin.HostObject.AddComponent<HotkeyPump>().Init(_toggleKey);
             Plugin.HostObject.AddComponent<ScreenLockedReadouts>();
@@ -579,13 +588,23 @@ namespace ChaseView.Features
 
                 if (TrackIrActive())
                 {
-                    // GetTrackIROffset returns the ABSOLUTE head pose; its arguments are only the
-                    // fallback when the client is missing and the recenter target when tracking is
-                    // lost. Passing identity means "recenter to looking down the chase axis", and
-                    // composing rather than assigning gives look-around-from-behind instead of
-                    // replacing the camera's aim the way the cockpit does.
-                    // [decompiled: Assembly-CSharp-firstpass]
-                    Quaternion head = TrackIRComponent.i.GetTrackIROffset(Vector3.zero, Quaternion.identity).Item2;
+                    // Returns the ABSOLUTE head pose; the arguments are only the fallback when no
+                    // tracker is present and the recenter target when tracking is lost. Passing
+                    // identity means "recenter to looking down the chase axis", and composing rather
+                    // than assigning gives look-around-from-behind instead of replacing the camera's
+                    // aim the way the cockpit does.
+                    //
+                    // #headtracker-manager (game build 24403978, 2026-07-27)
+                    //   Was TrackIRComponent.i.GetTrackIROffset. That update generalised head
+                    //   tracking behind IHeadTracker / HeadTrackerManager (TrackIR today, a Tobii
+                    //   component already present but not yet wired into ActiveTracker), and the old
+                    //   method is GONE - not deprecated, renamed to GetHeadTrackerOffset. Going
+                    //   through the manager rather than the concrete component is what the cockpit
+                    //   now does, so ChaseView picks up any future tracker for free. It also
+                    //   degrades safely: with no active tracker GetOffset hands back the arguments
+                    //   unchanged, i.e. identity, which composes to a no-op.
+                    // [decompiled: HeadTrackerManager.cs, CameraCockpitState.cs:216]
+                    Quaternion head = HeadTrackerManager.GetOffset(Vector3.zero, Quaternion.identity).Item2;
 
                     float amount = TrackIrAmount.Value;
                     if (amount < 0.999f || amount > 1.001f)
@@ -611,7 +630,15 @@ namespace ChaseView.Features
                 return true;
             }
 
-            private static bool TrackIrActive() => TrackIr.Value && PlayerSettings.useTrackIR;
+            /// <summary>
+            /// Mirrors the cockpit's own gate exactly: PlayerSettings.useTrackIR is the master
+            /// switch, and headTrackerType selects WHICH tracker - a player can leave head tracking
+            /// enabled while having the type set to None, in which case the cockpit does nothing and
+            /// so must we. [decompiled: CameraCockpitState.cs:216]
+            /// </summary>
+            private static bool TrackIrActive() =>
+                TrackIr.Value && PlayerSettings.useTrackIR
+                              && PlayerSettings.headTrackerType != HeadTrackerType.None;
 
             /// <summary>
             /// Are we touching the camera at all this frame? Kept as one test so the prefix's

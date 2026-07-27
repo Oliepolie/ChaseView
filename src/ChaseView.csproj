@@ -17,6 +17,17 @@
     <BepInExCoreDir>$(GameDir)\BepInEx\core</BepInExCoreDir>
   </PropertyGroup>
 
+  <!-- ======================= TEMPORARY - REMOVE BEFORE RELEASE =======================
+       Compiles GForceTestHarness.cs, which injects 15G on LeftCtrl+G so the chase-view
+       greyout can be verified without flying a real sustained pull. Delete this whole
+       PropertyGroup, the harness file, and the #if block in ChaseCamera.Apply once
+       #gforce-not-a-cheat is confirmed. `grep -r GFORCE_TEST src` must come back empty
+       before cutting a release. -->
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);GFORCE_TEST</DefineConstants>
+  </PropertyGroup>
+  <!-- ================================================================================= -->
+
   <ItemGroup>
     <!-- PerfProbe is a development diagnostic and is NOT compiled into releases. The source stays in
          the tree deliberately: the chase-vs-cockpit frame cost question is still open, and comment
