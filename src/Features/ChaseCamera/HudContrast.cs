@@ -244,16 +244,31 @@ namespace ChaseView.Features
         }
 
         /// <summary>
-        /// Logged once. If the edge still does nothing, the shader is the answer: the Mobile
-        /// distance-field variant supports outline but drops underlay, glow and bevel, and a sprite
-        /// or bitmap shader supports none of them.
+        /// Logged once. The shader NAME is the whole diagnosis - see #additive-cannot-darken. Also
+        /// probes which non-additive TMP shaders the build actually contains, because a
+        /// draw-the-text-twice-in-dark approach needs an alpha-blended material to darken with, and
+        /// Unity strips shader variants nothing references. Shader.Find returning null means the
+        /// technique is impossible here, not merely expensive.
         /// </summary>
         private static void LogShader(Material m)
         {
             _loggedShader = true;
             Plugin.Log.LogInfo($"[ChaseCamera] TMP font shader '{m.shader.name}' "
                              + $"outlineProp={m.HasProperty(ShaderUtilities.ID_OutlineWidth)} "
-                             + $"underlayProp={m.HasProperty(ShaderUtilities.ID_UnderlayColor)}");
+                             + $"underlayProp={m.HasProperty(ShaderUtilities.ID_UnderlayColor)} "
+                             + $"additive={IsAdditive(m)}");
+
+            // Is an alpha-blended TMP shader even present? Needed by any darken-behind approach.
+            string[] candidates =
+            {
+                "TextMeshPro/Distance Field",
+                "TextMeshPro/Mobile/Distance Field",
+                "TextMeshPro/Distance Field Overlay",
+            };
+            var sb = new System.Text.StringBuilder("[ChaseCamera] alpha-blended TMP shaders:");
+            foreach (string name in candidates)
+                sb.Append(' ').Append(name).Append('=').Append(Shader.Find(name) != null ? "YES" : "no");
+            Plugin.Log.LogInfo(sb.ToString());
         }
 
         /// <summary>
