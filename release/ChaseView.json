@@ -1,7 +1,7 @@
 {
   "id": "ChaseView",
   "displayName": "ChaseView",
-  "description": "A proper third-person chase camera, with the HUD. Nuclear Option already has a chase camera but won't show the HUD from it, won't let head tracking look around from it, and won't let you aim a turret from it. ChaseView fixes all three, slots chase into the Switch View cycle right after the cockpit, and frames every aircraft consistently using its real dimensions. Optional Ace Combat style weapon readout and always-on damage diagram, both off by default. Needs no server-side install and works on vanilla servers. One feature (turret aiming in external views) transmits, and only the same message the game already sends from the cockpit for your own aircraft - it can be switched off if you would rather send nothing.",
+  "description": "Chase style camera, complete with HUD, optional weapon select flavor graphics (and damage display model); works with (probably) every aircraft.",
   "tags": [
     "mod",
     "QoL",
