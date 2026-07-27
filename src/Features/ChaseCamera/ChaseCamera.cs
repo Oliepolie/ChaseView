@@ -46,6 +46,7 @@ namespace ChaseView.Features
         private ConfigEntry<bool> _screenLockReadouts;
         private ConfigEntry<bool> _screenLockCompass;
         private ConfigEntry<float> _hudScale;
+        private ConfigEntry<float> _hudTint;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
         private ConfigEntry<bool> _trackIr;
         private ConfigEntry<float> _trackIrAmount;
@@ -93,11 +94,17 @@ namespace ChaseView.Features
               + "in toward the middle of the screen, above 1 makes them larger. Needs ScreenLockReadouts.",
                 new AcceptableValueRange<float>(0.5f, 2f), 8));
 
+            // #hud-tint - the cockpit canopy darkens the world behind the HUD; chase has no canopy.
+            _hudTint = config.Bind(Name, "HudTint", 0.2f, Cfg.Basic(
+                "Darkens the view behind the chase HUD so the symbology reads against a bright sky, "
+              + "the way the cockpit canopy does. 0 turns it off.",
+                new AcceptableValueRange<float>(0f, 0.6f), 9));
+
             _inViewCycle = config.Bind(Name, "InViewCycle", true, Cfg.Basic(
                 "Put chase view in the Switch View cycle, right after the cockpit.", 0));
             _mouseLook = config.Bind(Name, "MouseLook", true, Cfg.Basic(
                 "Look around in chase view with your Pan/Tilt View bindings, exactly as the "
-              + "cockpit does. Uses the game's own sensitivity, inversion and smoothing.", 11));
+              + "cockpit does. Uses the game's own sensitivity, inversion and smoothing.", 12));
             MouseLook = _mouseLook;
 
             InViewCycle = _inViewCycle;
@@ -105,7 +112,7 @@ namespace ChaseView.Features
             _momentum = config.Bind(Name, "Momentum", 0f, Cfg.Basic(
                 "Sit behind where the aircraft is TRAVELLING rather than where its nose points. "
               + "0 = behind the nose, 1 = fully behind the flight path.",
-                new AcceptableValueRange<float>(0f, 1f), 10));
+                new AcceptableValueRange<float>(0f, 1f), 11));
             Momentum = _momentum;
 
             _hudInAllPositions = config.Bind(Name, "HudInAllPositions", false, Cfg.Adv("Show the HUD from the wingtip, top and front camera positions too."));
@@ -157,18 +164,20 @@ namespace ChaseView.Features
 
             _rollFollow = config.Bind(Name, "RollFollow", 0.9f, Cfg.Basic(
                 "How much the camera rolls with the aircraft. 1 = locked to it, 0 = horizon stays level.",
-                new AcceptableValueRange<float>(0f, 1f), 9));
+                new AcceptableValueRange<float>(0f, 1f), 10));
 
             _velocityAlign = config.Bind(Name, "VelocityAlign", 0f, Cfg.Adv("Aim toward where the aircraft is travelling rather than where it points. Helps at high AoA.", new AcceptableValueRange<float>(0f, 1f)));
 
             ScreenLockedReadouts.WantScreenLock = _screenLockReadouts.Value;
             ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             ScreenLockedReadouts.WantScale = _hudScale.Value;
+            HudContrast.WantTint = _hudTint.Value;
             // Live-editable through ConfigurationManager: mirror later changes too, so toggling the
             // split mid-flight takes effect instead of needing a restart.
             _screenLockReadouts.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScreenLock = _screenLockReadouts.Value;
             _screenLockCompass.SettingChanged += (s2, e) => ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             _hudScale.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScale = _hudScale.Value;
+            _hudTint.SettingChanged += (s2, e) => HudContrast.WantTint = _hudTint.Value;
 
             ShowHud = _showHud;
             HudInAllPositions = _hudInAllPositions;
@@ -193,6 +202,7 @@ namespace ChaseView.Features
             kv("ScreenLockReadouts", _screenLockReadouts.Value);
             kv("ScreenLockCompass", _screenLockCompass.Value);
             kv("HudScale", _hudScale.Value);
+            kv("HudTint", _hudTint.Value);
             kv("ToggleHudKey", _toggleKey.Value);
             kv("TrackIrInChase", _trackIr.Value);
             kv("TrackIrAmount", _trackIrAmount.Value);
@@ -263,6 +273,7 @@ namespace ChaseView.Features
 
             Plugin.HostObject.AddComponent<HotkeyPump>().Init(_toggleKey);
             Plugin.HostObject.AddComponent<ScreenLockedReadouts>();
+            Plugin.HostObject.AddComponent<HudContrast>();
         }
 
         /// <summary>
