@@ -47,7 +47,7 @@ namespace ChaseView.Features
         private ConfigEntry<bool> _screenLockCompass;
         private ConfigEntry<float> _hudScale;
         private ConfigEntry<float> _hudTint;
-        private ConfigEntry<float> _hudOutline;
+        private ConfigEntry<float> _hudShadow;
         private ConfigEntry<float> _hudOpacity;
         private ConfigEntry<float> _hudBrightness;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
@@ -97,17 +97,19 @@ namespace ChaseView.Features
               + "in toward the middle of the screen, above 1 makes them larger. Needs ScreenLockReadouts.",
                 new AcceptableValueRange<float>(0.5f, 2f), 8));
 
-            // #hud-outline - the lever that actually works; see HudContrast.
-            _hudOutline = config.Bind(Name, "HudOutline", 0.2f, Cfg.Basic(
-                "Draws a dark border around the chase HUD text so it reads against a bright sky. "
-              + "This is the main readability setting. 0 turns it off.",
-                new AcceptableValueRange<float>(0f, 0.4f), 9));
+            // #hud-shadow - renamed from HudOutline, which drove the WRONG TMP feature and made the
+            // text worse as it rose. Old key is left orphaned in existing dev configs on purpose:
+            // silently reusing the name would carry a value tuned for opposite behaviour.
+            _hudShadow = config.Bind(Name, "HudShadow", 0.35f, Cfg.Basic(
+                "Dark halo behind the chase HUD text so it reads against a bright sky. This is the "
+              + "main readability setting. 0 turns it off.",
+                new AcceptableValueRange<float>(0f, 1f), 9));
 
             // #hud-legibility - measured as a near no-op on most airframes, because the HUD is
             // already at full alpha. Kept for the elements that genuinely are translucent.
             _hudOpacity = config.Bind(Name, "HudOpacity", 0.6f, Cfg.Basic(
                 "How solid the chase HUD is drawn. Most of the HUD is already opaque, so this often "
-              + "changes little - HudOutline is the setting that does the work.",
+              + "changes little - HudShadow is the setting that does the work.",
                 new AcceptableValueRange<float>(0f, 1f), 10));
 
             // #hud-tint - the cockpit canopy darkens the world behind the HUD; chase has no canopy.
@@ -115,12 +117,12 @@ namespace ChaseView.Features
             // trade, and HudOpacity solves the same complaint without touching the world.
             _hudTint = config.Bind(Name, "HudTint", 0f, Cfg.Basic(
                 "Optionally darkens the view behind the chase HUD, the way the cockpit canopy does. "
-              + "0 is off. Try HudOutline first - this dims the whole screen.",
+              + "0 is off. Try HudShadow first - this dims the whole screen.",
                 new AcceptableValueRange<float>(0f, 0.6f), 11));
 
             _hudBrightness = config.Bind(Name, "HudBrightness", 1f, Cfg.Adv(
                 "Multiplies the HUD's colour. Above about 1.4 bright symbology clips toward white and "
-              + "starts losing the colour coding, so prefer HudOutline.",
+              + "starts losing the colour coding, so prefer HudShadow.",
                 new AcceptableValueRange<float>(1f, 2f)));
 
             _inViewCycle = config.Bind(Name, "InViewCycle", true, Cfg.Basic(
@@ -195,7 +197,7 @@ namespace ChaseView.Features
             ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             ScreenLockedReadouts.WantScale = _hudScale.Value;
             HudContrast.WantTint = _hudTint.Value;
-            HudContrast.WantOutline = _hudOutline.Value;
+            HudContrast.WantShadow = _hudShadow.Value;
             HudContrast.WantOpacity = _hudOpacity.Value;
             HudContrast.WantBrightness = _hudBrightness.Value;
             // Live-editable through ConfigurationManager: mirror later changes too, so toggling the
@@ -204,7 +206,7 @@ namespace ChaseView.Features
             _screenLockCompass.SettingChanged += (s2, e) => ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             _hudScale.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScale = _hudScale.Value;
             _hudTint.SettingChanged += (s2, e) => HudContrast.WantTint = _hudTint.Value;
-            _hudOutline.SettingChanged += (s2, e) => HudContrast.WantOutline = _hudOutline.Value;
+            _hudShadow.SettingChanged += (s2, e) => HudContrast.WantShadow = _hudShadow.Value;
             _hudOpacity.SettingChanged += (s2, e) => HudContrast.WantOpacity = _hudOpacity.Value;
             _hudBrightness.SettingChanged += (s2, e) => HudContrast.WantBrightness = _hudBrightness.Value;
 
@@ -232,7 +234,7 @@ namespace ChaseView.Features
             kv("ScreenLockCompass", _screenLockCompass.Value);
             kv("HudScale", _hudScale.Value);
             kv("HudTint", _hudTint.Value);
-            kv("HudOutline", _hudOutline.Value);
+            kv("HudShadow", _hudShadow.Value);
             kv("HudOpacity", _hudOpacity.Value);
             kv("HudBrightness", _hudBrightness.Value);
             kv("ToggleHudKey", _toggleKey.Value);

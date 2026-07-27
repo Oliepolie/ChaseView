@@ -12,28 +12,39 @@ namespace ChaseView.Features
     ///
     /// THREE LEVERS, IN THE ORDER THEY ACTUALLY HELP
     ///
-    /// #hud-outline (default ON) draws a dark border around the symbology. This is the one that
-    ///   works, and it is what every game does, because the problem is not that the HUD is too dim -
-    ///   it is that bright green on bright cloud has almost no luminance difference. A dark stroke
-    ///   supplies the missing contrast at the only place it matters, the glyph edge, and costs
+    /// #hud-shadow (default ON) puts a dark halo BEHIND the symbology. The problem is not that the
+    ///   HUD is too dim - it is that bright green on bright cloud has almost no luminance
+    ///   difference - so a dark backing supplies the missing contrast at the glyph edge and costs
     ///   nothing anywhere else on screen.
+    ///
+    ///   IT MUST BE TMP'S UNDERLAY, NOT ITS OUTLINE. An earlier build drove _OutlineWidth and was
+    ///   REJECTED in flight: readability got monotonically WORSE as the value rose, and 0 was best.
+    ///   The reason is that TMP grows an outline INWARD from the glyph edge, consuming the face
+    ///   rather than surrounding it. On small HUD digits with thin strokes a 0.2 width eats most of
+    ///   the glyph, so the text turns into chunky mud. Compensating with _FaceDilate did not come
+    ///   close. Underlay is a separate shader feature that renders behind the glyph and never
+    ///   touches the face, which is what was wanted all along. Do not "simplify" this back onto
+    ///   _OutlineWidth - it was tried and flown.
     ///
     /// #hud-legibility (default ON, but see below) raises alpha toward opaque. Kept because some
     ///   elements genuinely are translucent, but on measurement most of the HUD is already at alpha
     ///   1, so on its own this changed nothing visible. The one-line summary logged on build reports
     ///   how many elements were actually below full alpha - if that is near zero on your airframe,
-    ///   this knob is doing nothing and the outline is carrying the result.
+    ///   this knob is doing nothing and the shadow is carrying the result.
     ///
     /// #hud-tint (default OFF) darkens the world behind the HUD. The most faithful reproduction of
     ///   the canopy, and the worst trade: dimming the whole screen to read four numbers.
     ///
     /// WHY BOTH TEXT PIPELINES, AND WHY THAT IS THE ROBUST CHOICE
     ///   Unity's Outline component is a BaseMeshEffect and does nothing on TextMeshPro; TMP carries
-    ///   its outline in material properties instead. 0.34.0 moved most readouts to TMP but left
+    ///   its effects in material properties instead. 0.34.0 moved most readouts to TMP but left
     ///   WeaponIndicator on legacy Text. [decompiled] An earlier version of this file argued the
-    ///   split made outlines too fragile to attempt - that was wrong. Handling BOTH is what makes it
+    ///   split made this too fragile to attempt - that was wrong. Handling BOTH is what makes it
     ///   robust: a future Text -> TMP migration just moves an element from one branch to the other,
     ///   and neither branch notices.
+    ///
+    ///   Note the legacy Outline component was never the problem: it draws offset COPIES behind the
+    ///   text and leaves the glyph itself alone, which is the behaviour TMP needed Underlay for.
     ///
     /// THE COMPOUNDING TRAP, for the colour pass only
     ///   HUD apps rewrite their colours every frame from HUDAppManager.Update - AoADisplay evaluates
@@ -47,8 +58,8 @@ namespace ChaseView.Features
     ///   and that becomes the new base. The transform is always computed from the game's value, never
     ///   from ours. Same invariant as #no-feedback on the camera rotation.
     ///
-    ///   The outline needs none of this - nothing in the game writes outline width, so it is applied
-    ///   once when the cache is built or the setting changes, not per frame.
+    ///   The shadow needs none of this - nothing in the game writes these material properties, so it
+    ///   is applied once when the cache is built or the setting changes, not per frame.
     ///
     /// PARITY: Local. Vertex colours and font materials on this client's own UI.
     /// </summary>
@@ -57,7 +68,7 @@ namespace ChaseView.Features
         internal static float WantTint;        // 0 = no full-screen darkening, and nothing is created
         internal static float WantOpacity;     // 0 = leave vanilla alpha alone
         internal static float WantBrightness;  // 1 = leave vanilla colour alone
-        internal static float WantOutline;     // 0 = no dark border on the symbology
+        internal static float WantShadow;      // 0 = no dark halo behind the symbology
 
         private Image _tint;
 
@@ -65,7 +76,7 @@ namespace ChaseView.Features
         private Color[] _base;      // the game's own most recent value
         private Color[] _written;   // what we last wrote, to tell the two apart
         private Object _cachedFor;  // the HUDAppManager the cache was built from
-        private float _appliedOutline = -1f;
+        private float _appliedShadow = -1f;
 
         private void Update()
         {
@@ -90,8 +101,8 @@ namespace ChaseView.Features
 
             if (!EnsureGraphics()) return;
 
-            if (!Mathf.Approximately(WantOutline, _appliedOutline))
-                ApplyOutline(Mathf.Clamp(WantOutline, 0f, 0.4f));
+            if (!Mathf.Approximately(WantShadow, _appliedShadow))
+                ApplyShadow(Mathf.Clamp01(WantShadow));
 
             if (WantOpacity > 0.001f || WantBrightness > 1.001f) ApplyColour();
         }
@@ -131,9 +142,16 @@ namespace ChaseView.Features
         /// value to fight over and no compounding to guard against. TMP also instances a material on
         /// first fontMaterial access, which is not something to do sixty times a second.
         /// </summary>
-        private void ApplyOutline(float width)
+        private void ApplyShadow(float strength)
         {
             int tmp = 0, legacy = 0;
+
+            // TMP's underlay is a soft dark copy rendered BEHIND the glyph. Dilate spreads it outward
+            // past the glyph edge, softness blurs it into a halo rather than a hard drop shadow, and
+            // the offset stays at zero so the contrast lands on every side - a directional shadow
+            // leaves two edges of every digit as exposed as they were.
+            float dilate = strength * 0.4f;
+            var shadow = new Color(0f, 0f, 0f, 0.9f);
 
             for (int i = 0; i < _graphics.Length; i++)
             {
@@ -143,38 +161,56 @@ namespace ChaseView.Features
                 if (g is TMP_Text t)
                 {
                     Material m = t.fontMaterial;   // instances per label on first touch
-                    m.SetFloat(ShaderUtilities.ID_OutlineWidth, width);
-                    m.SetColor(ShaderUtilities.ID_OutlineColor, Color.black);
-                    // TMP grows the outline INWARD from the glyph edge, so a stroke thins the face it
-                    // is meant to protect. Dilating by half the width keeps the original weight.
-                    m.SetFloat(ShaderUtilities.ID_FaceDilate, width * 0.5f);
-                    // Without this the mesh bounds still describe the un-outlined glyph and the new
-                    // stroke is clipped at the edges - visible as chipped corners on wide characters.
+
+                    // Belt and braces: an earlier build drove these, and a material instance lives as
+                    // long as the label does. Zero them on every apply so nothing lingers.
+                    m.SetFloat(ShaderUtilities.ID_OutlineWidth, 0f);
+                    m.SetFloat(ShaderUtilities.ID_FaceDilate, 0f);
+
+                    if (strength <= 0.001f)
+                    {
+                        m.DisableKeyword(ShaderUtilities.Keyword_Underlay);
+                        m.SetFloat(ShaderUtilities.ID_UnderlayDilate, 0f);
+                        m.SetColor(ShaderUtilities.ID_UnderlayColor, Color.clear);
+                    }
+                    else
+                    {
+                        // The shader branch is keyword-gated; setting the properties without this
+                        // does nothing at all and looks like the feature is broken.
+                        m.EnableKeyword(ShaderUtilities.Keyword_Underlay);
+                        m.SetColor(ShaderUtilities.ID_UnderlayColor, shadow);
+                        m.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 0f);
+                        m.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, 0f);
+                        m.SetFloat(ShaderUtilities.ID_UnderlayDilate, dilate);
+                        m.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.15f);
+                    }
+
+                    // The underlay extends past the original glyph bounds; without this the mesh
+                    // padding still describes the bare glyph and the halo is clipped square.
                     t.UpdateMeshPadding();
                     tmp++;
                 }
                 else if (g is Text legacyText)
                 {
+                    // Legacy Outline draws offset COPIES behind the text - it never shrinks the glyph,
+                    // so it was always the right effect here and needs no equivalent of the underlay.
                     var o = legacyText.GetComponent<Outline>();
-                    if (width <= 0.001f)
+                    if (strength <= 0.001f)
                     {
                         if (o != null) Destroy(o);
                         continue;
                     }
                     if (o == null) o = legacyText.gameObject.AddComponent<Outline>();
-                    o.effectColor = new Color(0f, 0f, 0f, 0.9f);
-                    // TMP width is a 0..1 fraction of the glyph; legacy Outline is in pixels. Six is
-                    // the factor that makes the two look like the same stroke at 1440p.
-                    float d = Mathf.Max(1f, width * 6f);
+                    o.effectColor = shadow;
+                    float d = Mathf.Max(1f, strength * 3f);
                     o.effectDistance = new Vector2(d, -d);
                     legacy++;
                 }
-                // RawImage tapes and plain Images get nothing - an outline round a texture quad is a
-                // box, not a border.
+                // RawImage tapes and plain Images get nothing - a halo round a texture quad is a box.
             }
 
-            _appliedOutline = width;
-            Plugin.Log.LogInfo($"[ChaseCamera] HUD outline {width:0.##} applied to {tmp} TMP + {legacy} legacy");
+            _appliedShadow = strength;
+            Plugin.Log.LogInfo($"[ChaseCamera] HUD shadow {strength:0.##} applied to {tmp} TMP + {legacy} legacy");
         }
 
         /// <summary>
@@ -221,7 +257,7 @@ namespace ChaseView.Features
             }
 
             _cachedFor = mgr;
-            _appliedOutline = -1f;   // force a re-apply onto the new aircraft's elements
+            _appliedShadow = -1f;   // force a re-apply onto the new aircraft's elements
 
             // One line, because it answers the only question worth asking when a knob does nothing:
             // how much of this HUD is even translucent, and how much is text at all.
@@ -245,7 +281,7 @@ namespace ChaseView.Features
         {
             if (_graphics == null) return;
 
-            if (_appliedOutline > 0.001f) ApplyOutline(0f);
+            if (_appliedShadow > 0.001f) ApplyShadow(0f);
 
             for (int i = 0; i < _graphics.Length; i++)
             {
@@ -258,7 +294,7 @@ namespace ChaseView.Features
             _base = null;
             _written = null;
             _cachedFor = null;
-            _appliedOutline = -1f;
+            _appliedShadow = -1f;
         }
 
         private bool EnsureTint()
