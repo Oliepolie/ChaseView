@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,44 +8,56 @@ namespace ChaseView.Features
     /// <summary>
     /// Makes the chase HUD readable against raw daylight. In the cockpit the canopy glass darkens
     /// everything behind the symbology; chase has no canopy, so the same symbology competes with a
-    /// blown-out sky and washes out.
+    /// blown-out sky.
     ///
-    /// TWO LEVERS, AND THE ORDER MATTERS
+    /// THREE LEVERS, IN THE ORDER THEY ACTUALLY HELP
     ///
-    /// #hud-legibility (default ON) acts on the SYMBOLOGY. Every HUD element - legacy Text, TMP,
-    ///   RawImage tapes, the reticle - derives from UnityEngine.UI.Graphic, so Graphic.color is one
-    ///   uniform lever across the whole HUD regardless of which text pipeline it uses. Raising alpha
-    ///   toward opaque is what actually buys readability: the symbology is already bright, it is the
-    ///   translucency that lets the sky through it.
+    /// #hud-outline (default ON) draws a dark border around the symbology. This is the one that
+    ///   works, and it is what every game does, because the problem is not that the HUD is too dim -
+    ///   it is that bright green on bright cloud has almost no luminance difference. A dark stroke
+    ///   supplies the missing contrast at the only place it matters, the glyph edge, and costs
+    ///   nothing anywhere else on screen.
     ///
-    ///   This is why an Outline component was not the answer. Unity's Outline is a BaseMeshEffect and
-    ///   does not apply to TextMeshPro at all, and 0.34.0 moved nearly every readout to TMP while
-    ///   leaving WeaponIndicator on legacy Text. [decompiled] Graphic.color spans both.
+    /// #hud-legibility (default ON, but see below) raises alpha toward opaque. Kept because some
+    ///   elements genuinely are translucent, but on measurement most of the HUD is already at alpha
+    ///   1, so on its own this changed nothing visible. The one-line summary logged on build reports
+    ///   how many elements were actually below full alpha - if that is near zero on your airframe,
+    ///   this knob is doing nothing and the outline is carrying the result.
     ///
-    /// #hud-tint (default OFF) darkens the world behind the HUD instead. It works and it is the most
-    ///   faithful reproduction of the canopy, but dimming the entire screen to read four numbers is a
-    ///   heavy trade - so it stays available and stays off.
+    /// #hud-tint (default OFF) darkens the world behind the HUD. The most faithful reproduction of
+    ///   the canopy, and the worst trade: dimming the whole screen to read four numbers.
     ///
-    /// THE COMPOUNDING TRAP, which is the whole difficulty here
-    ///   The HUD apps rewrite their own colours every frame from HUDAppManager.Update - AoADisplay
-    ///   evaluates a gradient, others apply the player's hud colour. So we must run in LateUpdate to
+    /// WHY BOTH TEXT PIPELINES, AND WHY THAT IS THE ROBUST CHOICE
+    ///   Unity's Outline component is a BaseMeshEffect and does nothing on TextMeshPro; TMP carries
+    ///   its outline in material properties instead. 0.34.0 moved most readouts to TMP but left
+    ///   WeaponIndicator on legacy Text. [decompiled] An earlier version of this file argued the
+    ///   split made outlines too fragile to attempt - that was wrong. Handling BOTH is what makes it
+    ///   robust: a future Text -> TMP migration just moves an element from one branch to the other,
+    ///   and neither branch notices.
+    ///
+    /// THE COMPOUNDING TRAP, for the colour pass only
+    ///   HUD apps rewrite their colours every frame from HUDAppManager.Update - AoADisplay evaluates
+    ///   a gradient, others apply the player's hud colour - so the colour pass runs in LateUpdate to
     ///   land after them. But some elements are coloured ONCE and never touched again, and blindly
-    ///   transforming Graphic.color every frame would re-transform our own output on those, driving
-    ///   them to full white within a second.
+    ///   transforming Graphic.color every frame would re-transform our own output on those and drive
+    ///   them to white within a second.
     ///
-    ///   So each graphic remembers what WE last wrote. If its current colour still equals that, the
-    ///   game has not touched it and the stored base is still the truth; if it differs, the game has
-    ///   written something new and that becomes the new base. Either way the transform is always
-    ///   computed from the game's value, never from ours. Same invariant as #no-feedback on the
-    ///   camera rotation, for the same reason.
+    ///   So each graphic remembers what WE wrote. If its colour still equals that, the game has not
+    ///   touched it and the stored base is still truth; if it differs, the game wrote something new
+    ///   and that becomes the new base. The transform is always computed from the game's value, never
+    ///   from ours. Same invariant as #no-feedback on the camera rotation.
     ///
-    /// PARITY: Local. Vertex colours on this client's own UI.
+    ///   The outline needs none of this - nothing in the game writes outline width, so it is applied
+    ///   once when the cache is built or the setting changes, not per frame.
+    ///
+    /// PARITY: Local. Vertex colours and font materials on this client's own UI.
     /// </summary>
     internal sealed class HudContrast : MonoBehaviour
     {
         internal static float WantTint;        // 0 = no full-screen darkening, and nothing is created
         internal static float WantOpacity;     // 0 = leave vanilla alpha alone
         internal static float WantBrightness;  // 1 = leave vanilla colour alone
+        internal static float WantOutline;     // 0 = no dark border on the symbology
 
         private Image _tint;
 
@@ -52,6 +65,7 @@ namespace ChaseView.Features
         private Color[] _base;      // the game's own most recent value
         private Color[] _written;   // what we last wrote, to tell the two apart
         private Object _cachedFor;  // the HUDAppManager the cache was built from
+        private float _appliedOutline = -1f;
 
         private void Update()
         {
@@ -68,19 +82,22 @@ namespace ChaseView.Features
             _tint.color = new Color(0f, 0f, 0f, Mathf.Clamp01(WantTint));
         }
 
-        /// <summary>
-        /// After HUDAppManager.Update has written this frame's values - see the compounding note.
-        /// </summary>
+        /// <summary>After HUDAppManager.Update has written this frame's values.</summary>
         private void LateUpdate()
         {
-            bool want = !Core.Diag.Bypass
-                     && CameraStateManager.cameraMode == CameraMode.chase
-                     && (WantOpacity > 0.001f || WantBrightness > 1.001f);
-
-            if (!want) { RestoreColours(); return; }
+            bool chase = !Core.Diag.Bypass && CameraStateManager.cameraMode == CameraMode.chase;
+            if (!chase) { Restore(); return; }
 
             if (!EnsureGraphics()) return;
 
+            if (!Mathf.Approximately(WantOutline, _appliedOutline))
+                ApplyOutline(Mathf.Clamp(WantOutline, 0f, 0.4f));
+
+            if (WantOpacity > 0.001f || WantBrightness > 1.001f) ApplyColour();
+        }
+
+        private void ApplyColour()
+        {
             float opacity = Mathf.Clamp01(WantOpacity);
             float bright = Mathf.Clamp(WantBrightness, 1f, 4f);
 
@@ -100,8 +117,7 @@ namespace ChaseView.Features
                     outc.b = Mathf.Clamp01(outc.b * bright);
                 }
                 // Alpha 0 is how the game HIDES an element - the undamaged damage diagram is exactly
-                // this. Forcing those opaque would paint parts of the HUD that are meant to be gone,
-                // so only elements already drawing something get pushed toward solid.
+                // this. Forcing those opaque would paint HUD that is meant to be gone.
                 if (opacity > 0.001f && _base[i].a > 0.01f)
                     outc.a = Mathf.Lerp(_base[i].a, 1f, opacity);
 
@@ -111,14 +127,64 @@ namespace ChaseView.Features
         }
 
         /// <summary>
+        /// Applied on change rather than per frame: nothing in the game writes these, so there is no
+        /// value to fight over and no compounding to guard against. TMP also instances a material on
+        /// first fontMaterial access, which is not something to do sixty times a second.
+        /// </summary>
+        private void ApplyOutline(float width)
+        {
+            int tmp = 0, legacy = 0;
+
+            for (int i = 0; i < _graphics.Length; i++)
+            {
+                Graphic g = _graphics[i];
+                if (g == null) { _cachedFor = null; continue; }
+
+                if (g is TMP_Text t)
+                {
+                    Material m = t.fontMaterial;   // instances per label on first touch
+                    m.SetFloat(ShaderUtilities.ID_OutlineWidth, width);
+                    m.SetColor(ShaderUtilities.ID_OutlineColor, Color.black);
+                    // TMP grows the outline INWARD from the glyph edge, so a stroke thins the face it
+                    // is meant to protect. Dilating by half the width keeps the original weight.
+                    m.SetFloat(ShaderUtilities.ID_FaceDilate, width * 0.5f);
+                    // Without this the mesh bounds still describe the un-outlined glyph and the new
+                    // stroke is clipped at the edges - visible as chipped corners on wide characters.
+                    t.UpdateMeshPadding();
+                    tmp++;
+                }
+                else if (g is Text legacyText)
+                {
+                    var o = legacyText.GetComponent<Outline>();
+                    if (width <= 0.001f)
+                    {
+                        if (o != null) Destroy(o);
+                        continue;
+                    }
+                    if (o == null) o = legacyText.gameObject.AddComponent<Outline>();
+                    o.effectColor = new Color(0f, 0f, 0f, 0.9f);
+                    // TMP width is a 0..1 fraction of the glyph; legacy Outline is in pixels. Six is
+                    // the factor that makes the two look like the same stroke at 1440p.
+                    float d = Mathf.Max(1f, width * 6f);
+                    o.effectDistance = new Vector2(d, -d);
+                    legacy++;
+                }
+                // RawImage tapes and plain Images get nothing - an outline round a texture quad is a
+                // box, not a border.
+            }
+
+            _appliedOutline = width;
+            Plugin.Log.LogInfo($"[ChaseCamera] HUD outline {width:0.##} applied to {tmp} TMP + {legacy} legacy");
+        }
+
+        /// <summary>
         /// Collected from the two roots that between them cover the flight symbology, deduped:
-        /// HUDCenter (pitch ladder, waterline, reticle) and the HUDAppManager subtree (every readout).
+        /// HUDCenter (pitch ladder, waterline, reticle) and the HUDAppManager subtree (the readouts).
         ///
-        /// Taking the app subtree by its own root rather than by walking HUDCenter is deliberate:
-        /// ScreenLockedReadouts may have reparented it onto our screen-locked anchor, so it is not
-        /// always under HUDCenter - but it is the same set of objects either way, which is why
-        /// toggling the screen lock needs no rebuild. Rebuilt only when the aircraft changes, per
-        /// #perf-treewalk; the per-frame path touches a flat array and allocates nothing.
+        /// Taking the app subtree by its own root rather than walking HUDCenter is deliberate:
+        /// ScreenLockedReadouts may have reparented it onto our anchor, so it is not always under
+        /// HUDCenter - but it is the same object set either way, which is why toggling the screen lock
+        /// needs no rebuild. Rebuilt only when the aircraft changes, per #perf-treewalk.
         /// </summary>
         private bool EnsureGraphics()
         {
@@ -135,7 +201,7 @@ namespace ChaseView.Features
             // compass is a private [SerializeField]; reachable via the publicizer. Explicit because it
             // may have been screen-locked out of HUDCenter on its own.
             if (hud.compass != null) set.Add(hud.compass);
-            if (_tint != null) set.Remove(_tint);   // never re-tint our own quad
+            if (_tint != null) set.Remove(_tint);   // never restyle our own quad
 
             if (set.Count == 0) return false;
 
@@ -143,14 +209,24 @@ namespace ChaseView.Features
             set.CopyTo(_graphics);
             _base = new Color[_graphics.Length];
             _written = new Color[_graphics.Length];
+
+            int tmp = 0, legacy = 0, translucent = 0;
             for (int i = 0; i < _graphics.Length; i++)
             {
                 _base[i] = _graphics[i].color;
                 _written[i] = _base[i];
+                if (_graphics[i] is TMP_Text) tmp++;
+                else if (_graphics[i] is Text) legacy++;
+                if (_base[i].a < 0.99f && _base[i].a > 0.01f) translucent++;
             }
 
             _cachedFor = mgr;
-            Plugin.Log.LogInfo($"[ChaseCamera] HUD legibility tracking {_graphics.Length} element(s)");
+            _appliedOutline = -1f;   // force a re-apply onto the new aircraft's elements
+
+            // One line, because it answers the only question worth asking when a knob does nothing:
+            // how much of this HUD is even translucent, and how much is text at all.
+            Plugin.Log.LogInfo($"[ChaseCamera] HUD legibility: {_graphics.Length} elements "
+                             + $"({tmp} TMP, {legacy} legacy Text), {translucent} below full alpha");
             return true;
         }
 
@@ -161,13 +237,15 @@ namespace ChaseView.Features
         }
 
         /// <summary>
-        /// Hand every element back the last value the GAME chose, not the value it had when we started
-        /// - those differ on anything animated, and restoring a stale snapshot would freeze a gradient
-        /// at whatever it read when chase was entered.
+        /// Hand every element back the last value the GAME chose, not the value it had when chase was
+        /// entered - those differ on anything animated, and restoring a stale snapshot would freeze a
+        /// gradient at whatever it happened to read.
         /// </summary>
-        private void RestoreColours()
+        private void Restore()
         {
             if (_graphics == null) return;
+
+            if (_appliedOutline > 0.001f) ApplyOutline(0f);
 
             for (int i = 0; i < _graphics.Length; i++)
             {
@@ -180,6 +258,7 @@ namespace ChaseView.Features
             _base = null;
             _written = null;
             _cachedFor = null;
+            _appliedOutline = -1f;
         }
 
         private bool EnsureTint()
@@ -218,11 +297,11 @@ namespace ChaseView.Features
             return true;
         }
 
-        private void OnDisable() => RestoreColours();
+        private void OnDisable() => Restore();
 
         private void OnDestroy()
         {
-            RestoreColours();
+            Restore();
             if (_tint != null) Destroy(_tint.gameObject);
             _tint = null;
         }
