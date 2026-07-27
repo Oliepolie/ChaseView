@@ -32,10 +32,15 @@ namespace ChaseView.Features
     {
         public override string Name => "WeaponPanel";
 
+        // The Enabled entry shows this text, so it has to name EVERYTHING the switch gates, not just
+        // the headline feature. Plugin.cs skips Apply() entirely when a feature is off, so turning
+        // this off also removes the damage-diagram patch below - which is not guessable from a
+        // section called "WeaponPanel", and read as redundant with ShowWeaponList until it was.
         public override string Description =>
-            "Ace Combat style weapon readout in the bottom-right: every station listed with its short "
-          + "code and ammo, a marker on the selected one, countermeasures and a damage percentage, "
-          + "above the game's own aircraft diagram. LOCAL only - display on your own machine.";
+            "MASTER SWITCH for two things: the Ace Combat style weapon readout (ShowWeaponList) and "
+          + "the always-on damage diagram (ShowDamageDiagram). Off disables both and restores the "
+          + "stock HUD regardless of the settings below. Takes effect at startup, not live. "
+          + "LOCAL only - display on your own machine.";
 
         internal static ConfigEntry<bool> ShowPanel;
         private ConfigEntry<bool> _showPanel;
