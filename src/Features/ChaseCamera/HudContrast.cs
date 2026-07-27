@@ -75,6 +75,8 @@ namespace ChaseView.Features
         internal static float WantOpacity;     // 0 = leave vanilla alpha alone
         internal static float WantBrightness;  // 1 = leave vanilla colour alone
         internal static float WantShadow;      // 0 = no dark halo behind the symbology
+        internal static bool WantVignette;     // false = flat tint, for a straight A/B
+        internal static float WantClearCentre; // how much of the middle the vignette leaves alone
 
         private Image _tint;
 
@@ -83,6 +85,8 @@ namespace ChaseView.Features
         private Color[] _written;   // what we last wrote, to tell the two apart
         private Object _cachedFor;  // the HUDAppManager the cache was built from
         private float _appliedShadow = -1f;
+        private float _builtEdgeOnly = -1f;
+        private Sprite _vignette;
         private static bool _loggedShader;
         private static bool _warnedAdditive;
 
@@ -101,6 +105,17 @@ namespace ChaseView.Features
             }
 
             if (!EnsureTint()) return;
+
+            // #tint-vignette
+            //   A flat full-screen tint was tried and called drastic, fairly - it dims the sky you
+            //   are flying through in order to read numbers parked at the screen EDGES. The
+            //   screen-locked readouts all sit around the periphery and the centre holds the reticle
+            //   and the fight, so shaping the tint as a vignette darkens precisely where the
+            //   symbology is and leaves the middle alone. Same mechanism, a fraction of the cost to
+            //   the view.
+            float edge = WantVignette ? Mathf.Clamp(WantClearCentre, 0.05f, 0.9f) : 0f;
+            if (!Mathf.Approximately(edge, _builtEdgeOnly)) BuildVignette(edge);
+
             _tint.enabled = true;
             _tint.color = new Color(0f, 0f, 0f, Mathf.Clamp01(WantTint));
         }
@@ -353,6 +368,54 @@ namespace ChaseView.Features
             _written = null;
             _cachedFor = null;
             _appliedShadow = -1f;
+        }
+
+        /// <summary>
+        /// Generates the falloff texture rather than shipping one - the project deliberately ships no
+        /// assets, and a 128x128 alpha ramp costs less to compute than to load. Regenerated only when
+        /// the setting moves.
+        ///
+        /// Stretched over a 16:9 rect the radial ramp becomes elliptical, which is what a vignette
+        /// should be anyway.
+        /// </summary>
+        private void BuildVignette(float inner)
+        {
+            _builtEdgeOnly = inner;
+
+            if (inner <= 0.001f)
+            {
+                _tint.sprite = null;   // flat, uniform tint - Image draws a plain white quad
+                return;
+            }
+
+            const int N = 128;
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, mipChain: false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+            {
+                // Normalised so the edge midpoints sit at 1 and the corners at ~1.41.
+                float ny = (y + 0.5f) / N * 2f - 1f;
+                for (int x = 0; x < N; x++)
+                {
+                    float nx = (x + 0.5f) / N * 2f - 1f;
+                    float r = Mathf.Sqrt(nx * nx + ny * ny);
+                    float t = Mathf.Clamp01(Mathf.InverseLerp(inner, 1f, r));
+                    t = t * t * (3f - 2f * t);          // smoothstep, so the ramp has no visible band
+                    px[y * N + x] = new Color32(255, 255, 255, (byte)(t * 255f));
+                }
+            }
+            tex.SetPixels32(px);
+            tex.Apply(updateMipmaps: false);
+
+            if (_vignette != null) Destroy(_vignette);
+            _vignette = Sprite.Create(tex, new Rect(0f, 0f, N, N), new Vector2(0.5f, 0.5f));
+            _tint.sprite = _vignette;
+            Plugin.Log.LogInfo($"[ChaseCamera] tint vignette rebuilt, clear centre {inner:0.##}");
         }
 
         private bool EnsureTint()

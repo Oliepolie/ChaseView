@@ -47,6 +47,8 @@ namespace ChaseView.Features
         private ConfigEntry<bool> _screenLockCompass;
         private ConfigEntry<float> _hudScale;
         private ConfigEntry<float> _hudTint;
+        private ConfigEntry<bool> _hudTintVignette;
+        private ConfigEntry<float> _hudClearCentre;
         private ConfigEntry<float> _hudShadow;
         private ConfigEntry<float> _hudOpacity;
         private ConfigEntry<float> _hudBrightness;
@@ -117,8 +119,17 @@ namespace ChaseView.Features
             // trade, and HudOpacity solves the same complaint without touching the world.
             _hudTint = config.Bind(Name, "HudTint", 0f, Cfg.Basic(
                 "Optionally darkens the view behind the chase HUD, the way the cockpit canopy does. "
-              + "0 is off. Try HudShadow first - this dims the whole screen.",
+              + "0 is off. The readouts sit at the screen edges, so try it with HudTintVignette on.",
                 new AcceptableValueRange<float>(0f, 0.6f), 11));
+
+            // #tint-vignette - a toggle rather than a radius of zero, so the A/B is one click.
+            _hudTintVignette = config.Bind(Name, "HudTintVignette", true, Cfg.Basic(
+                "Shape the tint as a vignette - dark at the edges where the readouts are, clear "
+              + "through the middle. Off = dim the whole screen evenly.", 12));
+
+            _hudClearCentre = config.Bind(Name, "HudTintClearCentre", 0.45f, Cfg.Adv(
+                "How much of the screen centre the vignette leaves untinted.",
+                new AcceptableValueRange<float>(0.05f, 0.9f)));
 
             _hudBrightness = config.Bind(Name, "HudBrightness", 1f, Cfg.Adv(
                 "Multiplies the HUD's colour. Above about 1.4 bright symbology clips toward white and "
@@ -129,7 +140,7 @@ namespace ChaseView.Features
                 "Put chase view in the Switch View cycle, right after the cockpit.", 0));
             _mouseLook = config.Bind(Name, "MouseLook", true, Cfg.Basic(
                 "Look around in chase view with your Pan/Tilt View bindings, exactly as the "
-              + "cockpit does. Uses the game's own sensitivity, inversion and smoothing.", 14));
+              + "cockpit does. Uses the game's own sensitivity, inversion and smoothing.", 15));
             MouseLook = _mouseLook;
 
             InViewCycle = _inViewCycle;
@@ -137,7 +148,7 @@ namespace ChaseView.Features
             _momentum = config.Bind(Name, "Momentum", 0f, Cfg.Basic(
                 "Sit behind where the aircraft is TRAVELLING rather than where its nose points. "
               + "0 = behind the nose, 1 = fully behind the flight path.",
-                new AcceptableValueRange<float>(0f, 1f), 13));
+                new AcceptableValueRange<float>(0f, 1f), 14));
             Momentum = _momentum;
 
             _hudInAllPositions = config.Bind(Name, "HudInAllPositions", false, Cfg.Adv("Show the HUD from the wingtip, top and front camera positions too."));
@@ -189,7 +200,7 @@ namespace ChaseView.Features
 
             _rollFollow = config.Bind(Name, "RollFollow", 0.9f, Cfg.Basic(
                 "How much the camera rolls with the aircraft. 1 = locked to it, 0 = horizon stays level.",
-                new AcceptableValueRange<float>(0f, 1f), 12));
+                new AcceptableValueRange<float>(0f, 1f), 13));
 
             _velocityAlign = config.Bind(Name, "VelocityAlign", 0f, Cfg.Adv("Aim toward where the aircraft is travelling rather than where it points. Helps at high AoA.", new AcceptableValueRange<float>(0f, 1f)));
 
@@ -197,6 +208,8 @@ namespace ChaseView.Features
             ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             ScreenLockedReadouts.WantScale = _hudScale.Value;
             HudContrast.WantTint = _hudTint.Value;
+            HudContrast.WantVignette = _hudTintVignette.Value;
+            HudContrast.WantClearCentre = _hudClearCentre.Value;
             HudContrast.WantShadow = _hudShadow.Value;
             HudContrast.WantOpacity = _hudOpacity.Value;
             HudContrast.WantBrightness = _hudBrightness.Value;
@@ -206,6 +219,8 @@ namespace ChaseView.Features
             _screenLockCompass.SettingChanged += (s2, e) => ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             _hudScale.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScale = _hudScale.Value;
             _hudTint.SettingChanged += (s2, e) => HudContrast.WantTint = _hudTint.Value;
+            _hudTintVignette.SettingChanged += (s2, e) => HudContrast.WantVignette = _hudTintVignette.Value;
+            _hudClearCentre.SettingChanged += (s2, e) => HudContrast.WantClearCentre = _hudClearCentre.Value;
             _hudShadow.SettingChanged += (s2, e) => HudContrast.WantShadow = _hudShadow.Value;
             _hudOpacity.SettingChanged += (s2, e) => HudContrast.WantOpacity = _hudOpacity.Value;
             _hudBrightness.SettingChanged += (s2, e) => HudContrast.WantBrightness = _hudBrightness.Value;
@@ -234,6 +249,8 @@ namespace ChaseView.Features
             kv("ScreenLockCompass", _screenLockCompass.Value);
             kv("HudScale", _hudScale.Value);
             kv("HudTint", _hudTint.Value);
+            kv("HudTintVignette", _hudTintVignette.Value);
+            kv("HudTintClearCentre", _hudClearCentre.Value);
             kv("HudShadow", _hudShadow.Value);
             kv("HudOpacity", _hudOpacity.Value);
             kv("HudBrightness", _hudBrightness.Value);
