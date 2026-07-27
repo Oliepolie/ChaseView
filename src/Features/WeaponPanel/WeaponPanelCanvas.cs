@@ -66,28 +66,6 @@ namespace ChaseView.Features
 
             Aircraft ac = ResolveAircraft();
 
-            // #diagram-resurrect
-            //   The recolour runs as a POSTFIX on StatusDisplay.Update, and vanilla's Update sets
-            //   base.enabled = false once its 10s fade expires. A postfix on a method that no longer
-            //   runs never runs either - so once the diagram had faded, switching
-            //   ShowDamageDiagram back on did nothing at all, permanently. It only ever appeared
-            //   to work because the option used to default ON and caught the component while alive.
-            //
-            //   Re-enabling has to happen from OUTSIDE that method. Switching the option off is
-            //   self-healing: stop topping the timer up and vanilla's own countdown resumes, fades the
-            //   diagram out and disables it exactly as it would have.
-            if (ac != null && WeaponPanel.ShowDiagram.Value)
-            {
-                var sd = ac.statusDisplay;
-                if (sd != null && !sd.enabled) sd.enabled = true;
-            }
-            else if (!WeaponPanel.ShowDiagram.Value)
-            {
-                // Same reason as the resurrect above: with both options off, StatusDisplay.Update may
-                // already have disabled itself, and a postfix on a dead method cannot undo anything.
-                WeaponPanel.Hooks.RestoreOriginals();
-            }
-
             // #independent-toggles
             //   Hiding the stock panel and showing ours are SEPARATE options - the whole point is that
             //   you can run either, both or neither. This call used to sit below the ShowWeaponList

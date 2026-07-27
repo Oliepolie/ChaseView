@@ -124,6 +124,26 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
   ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen
   server and does not exercise the client leg. Stated in the README.
+- **Performance — SETTLED 2026-07-27, uncapped and vSync off. The old worry was an artefact.**
+
+  | mode | frames | mean | fps | >16 ms |
+  |---|---|---|---|---|
+  | **chase** | 23 940 | **8.24 ms** | 121 | **1.09 %** |
+  | **cockpit** | 3 713 | **8.59 ms** | 116 | **6.30 %** |
+  | free | 3 773 | 11.49 ms | 87 | 35.86 % |
+  | selection | 967 | 7.89 ms | 127 | 0.62 % |
+
+  **Chase is cheaper than the cockpit** — lower mean and six times fewer long frames over a
+  24 000-frame sample. The earlier "chase spikes ~1% of frames" reading came from measuring against
+  a 90 fps cap that pinned every mean; with the cap and vSync off it inverts. The cockpit is the
+  expensive view, which fits — it renders the cockpit interior *and* drives a second camera
+  (`cockpitCamRender`). `free` is by far the worst mode and ChaseView does not touch it.
+
+  Not captured: the `Bypass=True` half, so the mod's *isolated* cost is still unmeasured. Left as
+  optional — chase already beats cockpit, so our overhead is bounded well below anything that
+  matters. Redo with one 30 s toggle if a number is ever wanted.
+- **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen
+  server and does not exercise the client leg. Stated in the README.
 - **Performance — the pass is next, and the harness is ready.** Chase spikes ~1% of frames past 16 ms
   vs ~0% elsewhere, but that was measured against a 90 fps cap that pinned every mean, and the
   `PerfProbe / Bypass` A/B was never run. Everything below is verified as of 2026-07-27:
