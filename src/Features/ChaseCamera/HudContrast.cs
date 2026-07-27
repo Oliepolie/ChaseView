@@ -74,7 +74,6 @@ namespace ChaseView.Features
         internal static float WantTint;        // 0 = no full-screen darkening, and nothing is created
         internal static float WantOpacity;     // 0 = leave vanilla alpha alone
         internal static float WantBrightness;  // 1 = leave vanilla colour alone
-        internal static float WantShadow;      // 0 = no dark halo behind the symbology
         internal static bool WantVignette;     // false = flat tint, for a straight A/B
         internal static float WantClearCentre; // how much of the middle the vignette leaves alone
 
@@ -84,11 +83,9 @@ namespace ChaseView.Features
         private Color[] _base;      // the game's own most recent value
         private Color[] _written;   // what we last wrote, to tell the two apart
         private Object _cachedFor;  // the HUDAppManager the cache was built from
-        private float _appliedShadow = -1f;
         private float _builtEdgeOnly = -1f;
         private Sprite _vignette;
         private static bool _loggedShader;
-        private static bool _warnedAdditive;
 
         /// <summary>See #additive-cannot-darken. Blend is dst+src, so no dark effect can render.</summary>
         private static bool IsAdditive(Material m) =>
@@ -128,9 +125,6 @@ namespace ChaseView.Features
 
             if (!EnsureGraphics()) return;
 
-            if (!Mathf.Approximately(WantShadow, _appliedShadow))
-                ApplyShadow(Mathf.Clamp01(WantShadow));
-
             if (WantOpacity > 0.001f || WantBrightness > 1.001f) ApplyColour();
         }
 
@@ -162,100 +156,6 @@ namespace ChaseView.Features
                 if (outc != cur) g.color = outc;
                 _written[i] = outc;
             }
-        }
-
-        /// <summary>
-        /// Applied on change rather than per frame: nothing in the game writes these, so there is no
-        /// value to fight over and no compounding to guard against. TMP also instances a material on
-        /// first fontMaterial access, which is not something to do sixty times a second.
-        /// </summary>
-        private void ApplyShadow(float strength)
-        {
-            int tmp = 0, legacy = 0, skipped = 0;
-            var dark = new Color(0f, 0f, 0f, 1f);
-
-            for (int i = 0; i < _graphics.Length; i++)
-            {
-                Graphic g = _graphics[i];
-                if (g == null) { _cachedFor = null; continue; }
-
-                if (g is TMP_Text t)
-                {
-                    Material m = t.fontMaterial;   // instances per label on first touch
-                    if (!_loggedShader) LogShader(m);
-
-                    // #additive-cannot-darken
-                    //   This game draws HUD text with 'TextMeshPro/Distance Field Additive'.
-                    //   Additive blending is dst + src, so BLACK CONTRIBUTES NOTHING - a dark outline
-                    //   is not merely subtle, it is arithmetically absent. Worse, the outline band
-                    //   still replaces face pixels, so raising the width erases parts of each glyph
-                    //   and adds no border: strictly, monotonically worse. That is what two separate
-                    //   flights measured before the shader name was checked.
-                    //
-                    //   The same reasoning kills every other bright-side fix. Underlay adds black
-                    //   (nothing). FaceDilate fattens a bright face against a bright sky. Alpha under
-                    //   additive scales how much is ADDED, so opacity can only brighten.
-                    //
-                    //   On an additive HUD the only thing that raises contrast is darkening what sits
-                    //   BEHIND it - which is precisely why real aircraft have tinted canopies, and
-                    //   why HudTint is the lever that works. Skip rather than offer a knob that can
-                    //   only do harm.
-                    if (IsAdditive(m)) { skipped++; continue; }
-
-                    // #outline-dilate-must-equal-width
-                    //   TMP carves the outline INWARD from the face edge, so an outline alone erodes
-                    //   the glyph it is meant to protect. _FaceDilate pushes that edge back out.
-                    //
-                    //   The exact relationship, and the bug that cost a flight: with dilate d and
-                    //   width w, the face edge sits at +d and the outline band occupies +d-w to +d,
-                    //   leaving the coloured face reaching only to +d-w. For the face to keep its
-                    //   ORIGINAL extent you need d - w = 0, i.e. d == w, which puts the whole band
-                    //   outside the original glyph. An earlier build used d = w/2, eroding every
-                    //   glyph by half the outline width - which is why readability got monotonically
-                    //   WORSE as the setting rose and 0 was best.
-                    m.SetFloat(ShaderUtilities.ID_OutlineWidth, strength);
-                    m.SetFloat(ShaderUtilities.ID_FaceDilate, strength);
-                    m.SetColor(ShaderUtilities.ID_OutlineColor, dark);
-
-                    // Underlay would be the softer effect, but it is keyword-gated and the Mobile
-                    // distance-field shader omits it entirely - setting it produced no visible change
-                    // at all. Kept off rather than left half-configured.
-                    m.DisableKeyword(ShaderUtilities.Keyword_Underlay);
-
-                    // The band extends past the original glyph bounds; without this the mesh padding
-                    // still describes the bare glyph and the edge is clipped square.
-                    t.UpdateMeshPadding();
-                    tmp++;
-                }
-                else if (g is Text legacyText)
-                {
-                    // Legacy Outline draws offset COPIES behind the text and never shrinks the glyph,
-                    // so it needs none of the dilation correction above.
-                    var o = legacyText.GetComponent<Outline>();
-                    if (strength <= 0.001f)
-                    {
-                        if (o != null) Destroy(o);
-                        continue;
-                    }
-                    if (o == null) o = legacyText.gameObject.AddComponent<Outline>();
-                    o.effectColor = new Color(0f, 0f, 0f, 0.9f);
-                    float d = Mathf.Max(1f, strength * 6f);
-                    o.effectDistance = new Vector2(d, -d);
-                    legacy++;
-                }
-                // RawImage tapes and plain Images get nothing - a border round a texture quad is a box.
-            }
-
-            _appliedShadow = strength;
-            if (skipped > 0 && !_warnedAdditive)
-            {
-                _warnedAdditive = true;
-                Plugin.Log.LogWarning($"[ChaseCamera] {skipped} TMP element(s) use an ADDITIVE font "
-                                    + "shader - a dark edge cannot render on those at all. Use HudTint "
-                                    + "for those; see #additive-cannot-darken.");
-            }
-            Plugin.Log.LogInfo($"[ChaseCamera] HUD shadow {strength:0.##} applied to {tmp} TMP + "
-                             + $"{legacy} legacy, {skipped} skipped (additive)");
         }
 
         /// <summary>
@@ -324,13 +224,16 @@ namespace ChaseView.Features
             {
                 _base[i] = _graphics[i].color;
                 _written[i] = _base[i];
-                if (_graphics[i] is TMP_Text) tmp++;
+                if (_graphics[i] is TMP_Text tt)
+                {
+                    tmp++;
+                    if (!_loggedShader) LogShader(tt.fontMaterial);
+                }
                 else if (_graphics[i] is Text) legacy++;
                 if (_base[i].a < 0.99f && _base[i].a > 0.01f) translucent++;
             }
 
             _cachedFor = mgr;
-            _appliedShadow = -1f;   // force a re-apply onto the new aircraft's elements
 
             // One line, because it answers the only question worth asking when a knob does nothing:
             // how much of this HUD is even translucent, and how much is text at all.
@@ -354,8 +257,6 @@ namespace ChaseView.Features
         {
             if (_graphics == null) return;
 
-            if (_appliedShadow > 0.001f) ApplyShadow(0f);
-
             for (int i = 0; i < _graphics.Length; i++)
             {
                 Graphic g = _graphics[i];
@@ -367,7 +268,6 @@ namespace ChaseView.Features
             _base = null;
             _written = null;
             _cachedFor = null;
-            _appliedShadow = -1f;
         }
 
         /// <summary>

@@ -107,11 +107,19 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
   published.** Regenerate `release/meta.json` and `release/ChaseView.json` at package time: version
   and fileName `1.1.0`, the `v1.1.0` download URL, and the sha256 of the actual zip. `gameVersion`
   is already correct at `0.34`.
-- **HUD readability — `HudOutline` deployed, awaiting the flight that decides it.** Watch for
-  `HUD outline 0.2 applied to N TMP + M legacy` in the log; **N == 0 means it silently did nothing**
-  and needs a different hook. `HudScale` (flown, tuned to ~1.55) and `HudOpacity` are settled;
-  opacity measured as a near no-op because the HUD is already at alpha 1, which is recorded in the
-  build log line as "below full alpha".
+- **HUD readability — SETTLED, do not reopen.** Shipped answer is `HudTint = 0.1` with
+  `HudTintVignette` **off**; `HudScale` tuned to ~1.08. Everything else was tried and removed.
+  **`HudShadow` is gone** — see `#additive-cannot-darken`: the HUD font shader is
+  `TextMeshPro/Distance Field Additive`, blending is `dst + src`, so **black contributes nothing**
+  and no dark effect can render on the symbology at any setting. Three separate flights measured
+  that before the shader name got checked; check the shader FIRST next time.
+  `HudOpacity`/`HudBrightness` remain but do little for the same reason (alpha under additive scales
+  how much is *added*).
+- **Draw-the-text-twice-in-dark is possible but unbuilt.** The probe confirmed all three
+  alpha-blended TMP shaders are present (`Distance Field`, `Mobile/Distance Field`, `Overlay`), so a
+  dark duplicate layer would render. Not built: those ~26 labels change every frame, so it would
+  double TMP mesh regeneration on the hottest UI path. Backing-plate quads would be the cheap
+  version if this is ever wanted.
 - Olie's README should probably say the G-force effects apply in chase. **His prose, so his call** —
   ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen
@@ -125,9 +133,10 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
      OFF** (`GraphicsHelper.SetVSync` → `QualitySettings.vSyncCount`). Miss the second and the
      monitor refresh pins every mean exactly as the 90 fps cap did — this is the trap that wasted
      the last measurement.
-  2. **PerfProbe must be compiled in.** Comment out `<Compile Remove="Features\PerfProbe\**" />` in
-     the csproj. Confirmed to still build clean against 0.34.0 (checked 2026-07-27, then reverted).
-     `Diag.Bypass` has no other writer, so without PerfProbe there is no A/B at all.
+  2. **PerfProbe IS COMPILED IN RIGHT NOW** (2026-07-27) and `[PerfProbe] Enabled = true` is already
+     written into the live config. **The `<Compile Remove>` line in the csproj must be restored
+     before any release build** — `grep -n PerfProbe src/ChaseView.csproj` should show it
+     uncommented. `Diag.Bypass` has no other writer, so without PerfProbe there is no A/B at all.
   3. **Method:** same sortie, same scene — cockpit vs chase gives the upper bound, then chase with
      `Bypass` on vs off isolates our share of it.
 

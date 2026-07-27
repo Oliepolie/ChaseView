@@ -49,7 +49,6 @@ namespace ChaseView.Features
         private ConfigEntry<float> _hudTint;
         private ConfigEntry<bool> _hudTintVignette;
         private ConfigEntry<float> _hudClearCentre;
-        private ConfigEntry<float> _hudShadow;
         private ConfigEntry<float> _hudOpacity;
         private ConfigEntry<float> _hudBrightness;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
@@ -99,31 +98,23 @@ namespace ChaseView.Features
               + "in toward the middle of the screen, above 1 makes them larger. Needs ScreenLockReadouts.",
                 new AcceptableValueRange<float>(0.5f, 2f), 8));
 
-            // #hud-shadow - renamed from HudOutline, which drove the WRONG TMP feature and made the
-            // text worse as it rose. Old key is left orphaned in existing dev configs on purpose:
-            // silently reusing the name would carry a value tuned for opposite behaviour.
-            _hudShadow = config.Bind(Name, "HudShadow", 0.15f, Cfg.Basic(
-                "Dark edge around the chase HUD text so it reads against a bright sky. This is the "
-              + "main readability setting. 0 turns it off.",
-                new AcceptableValueRange<float>(0f, 0.3f), 9));
-
             // #hud-legibility - measured as a near no-op on most airframes, because the HUD is
             // already at full alpha. Kept for the elements that genuinely are translucent.
             _hudOpacity = config.Bind(Name, "HudOpacity", 0.6f, Cfg.Basic(
                 "How solid the chase HUD is drawn. Most of the HUD is already opaque, so this often "
-              + "changes little - HudShadow is the setting that does the work.",
+              + "changes little on this HUD. HudTint is the setting that does the work.",
                 new AcceptableValueRange<float>(0f, 1f), 10));
 
             // #hud-tint - the cockpit canopy darkens the world behind the HUD; chase has no canopy.
             // Ships OFF: it works, but dimming the whole screen to read four numbers is a heavy
             // trade, and HudOpacity solves the same complaint without touching the world.
-            _hudTint = config.Bind(Name, "HudTint", 0f, Cfg.Basic(
+            _hudTint = config.Bind(Name, "HudTint", 0.1f, Cfg.Basic(
                 "Optionally darkens the view behind the chase HUD, the way the cockpit canopy does. "
-              + "0 is off. The readouts sit at the screen edges, so try it with HudTintVignette on.",
+              + "0 is off. This is the only thing that raises contrast on this HUD - see HudTintVignette.",
                 new AcceptableValueRange<float>(0f, 0.6f), 11));
 
             // #tint-vignette - a toggle rather than a radius of zero, so the A/B is one click.
-            _hudTintVignette = config.Bind(Name, "HudTintVignette", true, Cfg.Basic(
+            _hudTintVignette = config.Bind(Name, "HudTintVignette", false, Cfg.Basic(
                 "Shape the tint as a vignette - dark at the edges where the readouts are, clear "
               + "through the middle. Off = dim the whole screen evenly.", 12));
 
@@ -133,7 +124,7 @@ namespace ChaseView.Features
 
             _hudBrightness = config.Bind(Name, "HudBrightness", 1f, Cfg.Adv(
                 "Multiplies the HUD's colour. Above about 1.4 bright symbology clips toward white and "
-              + "starts losing the colour coding, so prefer HudShadow.",
+              + "starts losing the colour coding, so prefer HudTint.",
                 new AcceptableValueRange<float>(1f, 2f)));
 
             _inViewCycle = config.Bind(Name, "InViewCycle", true, Cfg.Basic(
@@ -210,7 +201,6 @@ namespace ChaseView.Features
             HudContrast.WantTint = _hudTint.Value;
             HudContrast.WantVignette = _hudTintVignette.Value;
             HudContrast.WantClearCentre = _hudClearCentre.Value;
-            HudContrast.WantShadow = _hudShadow.Value;
             HudContrast.WantOpacity = _hudOpacity.Value;
             HudContrast.WantBrightness = _hudBrightness.Value;
             // Live-editable through ConfigurationManager: mirror later changes too, so toggling the
@@ -221,7 +211,6 @@ namespace ChaseView.Features
             _hudTint.SettingChanged += (s2, e) => HudContrast.WantTint = _hudTint.Value;
             _hudTintVignette.SettingChanged += (s2, e) => HudContrast.WantVignette = _hudTintVignette.Value;
             _hudClearCentre.SettingChanged += (s2, e) => HudContrast.WantClearCentre = _hudClearCentre.Value;
-            _hudShadow.SettingChanged += (s2, e) => HudContrast.WantShadow = _hudShadow.Value;
             _hudOpacity.SettingChanged += (s2, e) => HudContrast.WantOpacity = _hudOpacity.Value;
             _hudBrightness.SettingChanged += (s2, e) => HudContrast.WantBrightness = _hudBrightness.Value;
 
@@ -251,7 +240,6 @@ namespace ChaseView.Features
             kv("HudTint", _hudTint.Value);
             kv("HudTintVignette", _hudTintVignette.Value);
             kv("HudTintClearCentre", _hudClearCentre.Value);
-            kv("HudShadow", _hudShadow.Value);
             kv("HudOpacity", _hudOpacity.Value);
             kv("HudBrightness", _hudBrightness.Value);
             kv("ToggleHudKey", _toggleKey.Value);
