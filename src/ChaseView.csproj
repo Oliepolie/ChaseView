@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>ChaseView</AssemblyName>
     <RootNamespace>ChaseView</RootNamespace>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>

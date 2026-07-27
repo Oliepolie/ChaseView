@@ -99,8 +99,17 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
   method body's tokens when it JITs, and `UpdateState_Post` ran fine — mouse look and roll follow
   both worked — which is exactly what a missing method would have prevented. So the break is fixed;
   only the offset composition in chase is untested. Re-check if you turn head tracking back on.
-- **1.0.1 is a compatibility release, not just a feature one.** 1.0.0 is broken on 0.34.0, so it
-  should ship promptly. Packaged and manifests updated; publishing is the remaining step.
+- **NEXT RELEASE IS `1.1.0`, and nothing is published yet.** Decided 2026-07-27: rather than ship the
+  0.34.0 compatibility fix alone as 1.0.1, it goes out together with `HudScale` as 1.1.0 once the
+  scaling has been flown. **1.0.0 remains what NOMNOM serves and it does not work on 0.34.0**, so
+  this should not drift.
+- **Both manifests are STALE — they say `1.0.1` with the hash of a build that will never be
+  published.** Regenerate `release/meta.json` and `release/ChaseView.json` at package time: version
+  and fileName `1.1.0`, the `v1.1.0` download URL, and the sha256 of the actual zip. `gameVersion`
+  is already correct at `0.34`.
+- **`HudScale` is deployed but not flown.** Check that below 1 draws the readouts inward and above 1
+  pushes them out, that the pitch ladder / waterline / reticle do NOT move with it, and that leaving
+  chase restores the cockpit HUD unscaled.
 - Olie's README should probably say the G-force effects apply in chase. **His prose, so his call** —
   ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen

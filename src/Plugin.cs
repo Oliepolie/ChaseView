@@ -24,7 +24,7 @@ namespace ChaseView
         /// <summary>Free to change - shows up in the BepInEx console and plugin list, nothing else.</summary>
         public const string DisplayName = "ChaseView";
 
-        public const string Version = "1.0.1";
+        public const string Version = "1.1.0";
 
         internal static ManualLogSource Log;
 
