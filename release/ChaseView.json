@@ -1,7 +1,7 @@
 {
   "id": "ChaseView",
   "displayName": "ChaseView",
-  "description": "A proper third-person chase camera, with the HUD. Nuclear Option already has a chase camera but won't show the HUD from it, won't let head tracking look around from it, and won't let you aim a turret from it. ChaseView fixes all three, slots chase into the Switch View cycle right after the cockpit, and frames every aircraft consistently using its real dimensions. Optional Ace Combat style weapon readout and always-on damage diagram, both off by default. Needs no server-side install and works on vanilla servers. One feature (turret aiming in external views) transmits, and only the same message the game already sends from the cockpit for your own aircraft - it can be switched off if you would rather send nothing.",
+  "description": "A proper third-person chase camera, with the HUD. Nuclear Option already has a chase camera but won't show the HUD from it, won't let head tracking look around from it, and won't let you aim a turret from it. ChaseView fixes all three, slots chase into the Switch View cycle right after the cockpit, and frames every aircraft consistently using its real dimensions. G-force blackout applies in chase exactly as it does in the cockpit, so the view costs you nothing and gains you nothing. Optional Ace Combat style weapon readout and always-on damage diagram, both off by default. Needs no server-side install and works on vanilla servers. One feature (turret aiming in external views) transmits, and only the same message the game already sends from the cockpit for your own aircraft - it can be switched off if you would rather send nothing.",
   "tags": [
     "mod",
     "QoL",
@@ -21,13 +21,13 @@
   "autoUpdateArtifacts": "True",
   "artifacts": [
     {
-      "fileName": "ChaseView-1.0.0.zip",
-      "version": "1.0.0",
+      "fileName": "ChaseView-1.0.1.zip",
+      "version": "1.0.1",
       "category": "release",
       "type": "plugin",
-      "gameVersion": "0.33",
-      "downloadUrl": "https://github.com/Oliepolie/ChaseView/releases/download/v1.0.0/ChaseView-1.0.0.zip",
-      "hash": "sha256:80ffef90d5769f658c0ca5153d81d57ac0be11f17bf146948447f4afbe220a5f"
+      "gameVersion": "0.34",
+      "downloadUrl": "https://github.com/Oliepolie/ChaseView/releases/download/v1.0.1/ChaseView-1.0.1.zip",
+      "hash": "sha256:6cc9c7c0b020cfb773bb5719cd8d4eff7cae51386b15fadbb3d51f64e9db05f0"
     }
   ]
 }

@@ -46,13 +46,22 @@ Each has a `#tag` in the source; grep for it to find the reasoning at the site.
 | `#scale-sentinel` | `_scale` starts at `-1f`. At exactly 1920×1080 the vanilla canvas scale is 1.0, so an initial `1f` made the first `SyncScale` early-out and the panel never got positioned. |
 | `#perf-treewalk` / `#perf-throttle` | No whole-hierarchy searches or string allocations per frame. |
 | `#turret-parallax` / `#turret-reticle` | Turrets aim at the *point* the camera looks at, not parallel to it; the crosshair projects that same convergence point rather than 10 km down the barrel. |
-| `#gforce-not-a-cheat` | The G-force greyout is re-applied in chase. Vanilla runs the whole physiology camera-independently but gates only the *visuals* on the cockpit, so an external view flew the run-up to G-LOC with clean picture and clean audio. **No config toggle** — a checkbox that removes a penalty is the cheat. Lives in the ChaseCamera folder so it cannot be dropped without dropping the camera. |
+| `#gforce-not-a-cheat` | The G-force greyout is re-applied in chase. Vanilla runs the whole physiology camera-independently but gates only the *visuals* on the cockpit, so an external view flew the run-up to G-LOC with clean picture and clean audio. **No config toggle** — a checkbox that removes a penalty is the cheat. Lives in the ChaseCamera folder so it cannot be dropped without dropping the camera. **Flown and confirmed 2026-07-27.** |
 
 ## Game update 2026-07-27 (Steam buildid 24403978) — BREAKS SHIPPED 1.0.0
 
-The game rewrote its assemblies at 00:31 local, mid-session. Previous game version was `0.33.4`;
-re-read `[env]` in the BepInEx log after the next launch for the new one and update `gameVersion` in
-both manifests if the major.minor moved off `0.33`.
+The game rewrote its assemblies at 00:31 local, mid-session. **`0.33.4` → `0.34.0`**; both manifests
+now say `gameVersion: "0.34"`. That field matters more than it looks: NOMNOM's `Update-ModArtifact.ps1`
+copies `gameVersion` from `artifacts[0]` onto every artifact it auto-appends, so leaving it stale
+would mislabel every future release too.
+
+**Other mods this update broke** (seen in the same log, neither ours): `anomie.rearmstatushud` throws
+`MissingMethodException: Aircraft.remove_OnRearm` from `Update()` — 2864 times in one session, from
+the main menu onward — because 0.34.0 refactored `IRearmable`/`OnRearm`; and `NOX` NPEs inside its
+own `NOM.UpdateCheck`. There is also a burst of `Graphic.Rebuild` NPEs at aircraft spawn whose stack
+is `Aircraft.SetupLocalPlayerAndUI → DynamicMap.Maximize → FlightHud.EnableCanvas → Text.OnDisable`,
+containing no ChaseView frame and no method ChaseView patches. Worth re-checking if anyone reports
+HUD trouble, but it is not ours.
 
 **What broke.** Head tracking was generalised behind `IHeadTracker` / `HeadTrackerManager` (TrackIR
 today; a `TobiiHeadTrackerComponent` exists but `ActiveTracker` does not yet return it).
@@ -84,16 +93,14 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
 
 ## Open
 
-- **A TEMPORARY TEST HARNESS IS COMPILED IN.** `GForceTestHarness.cs` injects 15G on LeftCtrl+G.
-  Before cutting any release: `grep -r GFORCE_TEST src` must come back **empty**. Removing it means
-  deleting the file, the `<DefineConstants>` PropertyGroup in the csproj, and the `#if` block in
-  `ChaseCamera.Apply`.
-- **`#gforce-not-a-cheat` is built and deployed but NOT yet flown** (v1.0.1, 2026-07-27). What to
-  check: pull sustained Gs in chase and confirm the picture desaturates, vignettes and the audio
-  muffles exactly as it does in the cockpit — then that it clears cleanly on switching away. Not
-  released; 1.0.0 is still what NOMNOM serves.
-- **1.0.1 is now a compatibility release, not just a feature one.** 1.0.0 is broken on the current
-  game build (see above), so this should ship reasonably promptly once flown.
+- **The head-tracking path itself is compiled but unexercised.** The flight that verified 0.34.0 ran
+  with `PlayerSettings.useTrackIR = False` (the update appears to have reset it — it was on before),
+  so `HeadTrackerManager.GetOffset` was never *called*. It was however **resolved**: Mono resolves a
+  method body's tokens when it JITs, and `UpdateState_Post` ran fine — mouse look and roll follow
+  both worked — which is exactly what a missing method would have prevented. So the break is fixed;
+  only the offset composition in chase is untested. Re-check if you turn head tracking back on.
+- **1.0.1 is a compatibility release, not just a feature one.** 1.0.0 is broken on 0.34.0, so it
+  should ship promptly. Packaged and manifests updated; publishing is the remaining step.
 - Olie's README should probably say the G-force effects apply in chase. **His prose, so his call** —
   ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen

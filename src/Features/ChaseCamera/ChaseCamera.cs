@@ -251,11 +251,6 @@ namespace ChaseView.Features
             harmony.Patch(AccessTools.Method(typeof(GLOC), nameof(GLOC.SimulateGLOC)),
                 postfix: Safe(typeof(GForceEffects), nameof(GForceEffects.SimulateGLOC_Post)));
 
-#if GFORCE_TEST
-            // TEMPORARY - remove with GForceTestHarness.cs and the csproj define once flown.
-            GForceTestHarness.Apply(harmony);
-#endif
-
             Plugin.HostObject.AddComponent<HotkeyPump>().Init(_toggleKey);
             Plugin.HostObject.AddComponent<ScreenLockedReadouts>();
         }
