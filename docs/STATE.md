@@ -1,17 +1,21 @@
 # ChaseView — where things stand
 
 Checkpoint so a fresh session can pick up without re-deriving anything.
-Last updated: 2026-07-26, after v1.0.0 shipped.
+Last updated: 2026-07-27, after v1.1.0 shipped.
 
 ## Shipped
 
 | | |
 |---|---|
-| Release | `v1.0.0` → https://github.com/Oliepolie/ChaseView/releases/tag/v1.0.0 |
-| Asset | `ChaseView-1.0.0.zip`, sha256 `80ffef90d5769f658c0ca5153d81d57ac0be11f17bf146948447f4afbe220a5f` |
-| Tag | `v1.0.0` → commit `659d5d4` (contains the source it was built from) |
-| NOMNOM PR | [KopterBuzz/NOMNOM#221](https://github.com/KopterBuzz/NOMNOM/pull/221) — open, awaiting first-time-contributor workflow approval |
-| Verified | asset downloaded anonymously, hash matches both manifests, DLL inside == the DLL flown |
+| Release | `v1.1.0` → https://github.com/Oliepolie/ChaseView/releases/tag/v1.1.0 |
+| Asset | `ChaseView-1.1.0.zip` (23503 bytes), sha256 `aae68ea57f93cfe6046ccc954fa8ff7e35f0c364dcb541d14da24299130c8863` |
+| Tag | `v1.1.0` → commit `b9c6590`. `v1.0.0` still points at `659d5d4` and was never moved. |
+| Game | built and measured against Nuclear Option **0.34.0**. 1.0.0 does NOT run on it. |
+| NOMNOM PR | [KopterBuzz/NOMNOM#221](https://github.com/KopterBuzz/NOMNOM/pull/221) — open, mergeable, now proposing 1.1.0. Branch `Oliepolie/NOMNOM:add-chaseview`. |
+| Verified | asset re-downloaded anonymously, sha256 matches both manifests, and the published DLL greps clean for `PerfProbe`/`GForceTest`/`ReportSeconds` |
+
+Superseded: `v1.0.0` (`ChaseView-1.0.0.zip`, sha256 `80ffef90…`, commit `659d5d4`) — left in place, but
+broken on 0.34.0 and no longer offered by the manifest.
 
 Registry is **NOMNOM** (`kopterbuzz.github.io/NOMNOM/manifest/manifest.json`). Submission = one JSON
 file in `modManifests/` via PR. `autoUpdateArtifacts: "True"` means **future releases are picked up
@@ -22,8 +26,11 @@ NOMM drops into an installed plugin folder; `release/ChaseView.json` is the regi
 
 ## Features
 
-`ChaseCamera` · `WeaponPanel` · `TurretAimInChase` · `PerfProbe` (excluded from release builds by a
-`Compile Remove` in the csproj — comment it out to build a measuring copy).
+`ChaseCamera` · `WeaponPanel` · `DamageDiagram` · `TurretAimInChase` · `PerfProbe` (excluded from
+release builds by a `Compile Remove` in the csproj — comment it out to build a measuring copy).
+
+Verified 2026-07-27 that `Features/WeaponPanel` and `Features/DamageDiagram` each compile with the
+other excluded, so the independence rule holds mechanically and not just by inspection.
 
 Everything is `Parity.Local` **except `TurretAimInChase`**, which sends `Aircraft.SetTurretVector`
 (a ServerRpc). It is the same message vanilla sends from the cockpit, for your own aircraft, at
@@ -99,10 +106,10 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
   method body's tokens when it JITs, and `UpdateState_Post` ran fine — mouse look and roll follow
   both worked — which is exactly what a missing method would have prevented. So the break is fixed;
   only the offset composition in chase is untested. Re-check if you turn head tracking back on.
-- **ONE FULL RELEASE WHEN IT IS DONE — settled, stop reopening it.** Olie's call, 2026-07-27, made
-  twice: no interim 1.0.1 or 1.1.0. Sequence is **confirm the HUD readability work → perf pass →
-  ship**. The cost is understood and accepted: **1.0.0 remains what NOMNOM serves and it does not run
-  on 0.34.0** for the whole interval. Do not keep pitching an early release.
+- **1.1.0 shipped with two changes never flown**: the `DamageDiagram` split out of `WeaponPanel`, and
+  the `#cache-null-manager` fix. Risk was judged low because `AlwaysShow` and `ShowWeaponList` both
+  default off, so a fresh install exercises neither path — but they are untested, not verified. First
+  thing to check if anything is reported.
 - **Both manifests are STALE — they say `1.0.1` with the hash of a build that will never be
   published.** Regenerate `release/meta.json` and `release/ChaseView.json` at package time: version
   and fileName `1.1.0`, the `v1.1.0` download URL, and the sha256 of the actual zip. `gameVersion`
