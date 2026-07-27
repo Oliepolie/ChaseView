@@ -84,6 +84,11 @@ namespace ChaseView.Features
         private Object _cachedFor;  // the HUDAppManager the cache was built from
         private float _appliedShadow = -1f;
         private static bool _loggedShader;
+        private static bool _warnedAdditive;
+
+        /// <summary>See #additive-cannot-darken. Blend is dst+src, so no dark effect can render.</summary>
+        private static bool IsAdditive(Material m) =>
+            m != null && m.shader != null && m.shader.name.IndexOf("Additive", System.StringComparison.OrdinalIgnoreCase) >= 0;
 
         private void Update()
         {
@@ -151,7 +156,7 @@ namespace ChaseView.Features
         /// </summary>
         private void ApplyShadow(float strength)
         {
-            int tmp = 0, legacy = 0;
+            int tmp = 0, legacy = 0, skipped = 0;
             var dark = new Color(0f, 0f, 0f, 1f);
 
             for (int i = 0; i < _graphics.Length; i++)
@@ -163,6 +168,24 @@ namespace ChaseView.Features
                 {
                     Material m = t.fontMaterial;   // instances per label on first touch
                     if (!_loggedShader) LogShader(m);
+
+                    // #additive-cannot-darken
+                    //   This game draws HUD text with 'TextMeshPro/Distance Field Additive'.
+                    //   Additive blending is dst + src, so BLACK CONTRIBUTES NOTHING - a dark outline
+                    //   is not merely subtle, it is arithmetically absent. Worse, the outline band
+                    //   still replaces face pixels, so raising the width erases parts of each glyph
+                    //   and adds no border: strictly, monotonically worse. That is what two separate
+                    //   flights measured before the shader name was checked.
+                    //
+                    //   The same reasoning kills every other bright-side fix. Underlay adds black
+                    //   (nothing). FaceDilate fattens a bright face against a bright sky. Alpha under
+                    //   additive scales how much is ADDED, so opacity can only brighten.
+                    //
+                    //   On an additive HUD the only thing that raises contrast is darkening what sits
+                    //   BEHIND it - which is precisely why real aircraft have tinted canopies, and
+                    //   why HudTint is the lever that works. Skip rather than offer a knob that can
+                    //   only do harm.
+                    if (IsAdditive(m)) { skipped++; continue; }
 
                     // #outline-dilate-must-equal-width
                     //   TMP carves the outline INWARD from the face edge, so an outline alone erodes
@@ -209,7 +232,15 @@ namespace ChaseView.Features
             }
 
             _appliedShadow = strength;
-            Plugin.Log.LogInfo($"[ChaseCamera] HUD shadow {strength:0.##} applied to {tmp} TMP + {legacy} legacy");
+            if (skipped > 0 && !_warnedAdditive)
+            {
+                _warnedAdditive = true;
+                Plugin.Log.LogWarning($"[ChaseCamera] {skipped} TMP element(s) use an ADDITIVE font "
+                                    + "shader - a dark edge cannot render on those at all. Use HudTint "
+                                    + "for those; see #additive-cannot-darken.");
+            }
+            Plugin.Log.LogInfo($"[ChaseCamera] HUD shadow {strength:0.##} applied to {tmp} TMP + "
+                             + $"{legacy} legacy, {skipped} skipped (additive)");
         }
 
         /// <summary>
