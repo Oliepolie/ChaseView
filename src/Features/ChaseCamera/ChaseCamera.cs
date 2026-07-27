@@ -100,10 +100,10 @@ namespace ChaseView.Features
             // #hud-shadow - renamed from HudOutline, which drove the WRONG TMP feature and made the
             // text worse as it rose. Old key is left orphaned in existing dev configs on purpose:
             // silently reusing the name would carry a value tuned for opposite behaviour.
-            _hudShadow = config.Bind(Name, "HudShadow", 0.35f, Cfg.Basic(
-                "Dark halo behind the chase HUD text so it reads against a bright sky. This is the "
+            _hudShadow = config.Bind(Name, "HudShadow", 0.15f, Cfg.Basic(
+                "Dark edge around the chase HUD text so it reads against a bright sky. This is the "
               + "main readability setting. 0 turns it off.",
-                new AcceptableValueRange<float>(0f, 1f), 9));
+                new AcceptableValueRange<float>(0f, 0.3f), 9));
 
             // #hud-legibility - measured as a near no-op on most airframes, because the HUD is
             // already at full alpha. Kept for the elements that genuinely are translucent.

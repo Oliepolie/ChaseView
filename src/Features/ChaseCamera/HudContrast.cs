@@ -17,14 +17,20 @@ namespace ChaseView.Features
     ///   difference - so a dark backing supplies the missing contrast at the glyph edge and costs
     ///   nothing anywhere else on screen.
     ///
-    ///   IT MUST BE TMP'S UNDERLAY, NOT ITS OUTLINE. An earlier build drove _OutlineWidth and was
-    ///   REJECTED in flight: readability got monotonically WORSE as the value rose, and 0 was best.
-    ///   The reason is that TMP grows an outline INWARD from the glyph edge, consuming the face
-    ///   rather than surrounding it. On small HUD digits with thin strokes a 0.2 width eats most of
-    ///   the glyph, so the text turns into chunky mud. Compensating with _FaceDilate did not come
-    ///   close. Underlay is a separate shader feature that renders behind the glyph and never
-    ///   touches the face, which is what was wanted all along. Do not "simplify" this back onto
-    ///   _OutlineWidth - it was tried and flown.
+    ///   TWO WRONG ANSWERS WERE FLOWN BEFORE THIS ONE. Both are worth knowing, because each looks
+    ///   correct in isolation:
+    ///
+    ///   1. _OutlineWidth with _FaceDilate = w/2. Readability got monotonically WORSE as the value
+    ///      rose, best at 0. TMP carves the outline INWARD from the face edge, so half the outline
+    ///      width was eaten out of every glyph. See #outline-dilate-must-equal-width for the exact
+    ///      relationship - the fix is d == w, not d == w/2, and that is a one-character difference
+    ///      between "sharpens the text" and "dissolves it".
+    ///
+    ///   2. Underlay, TMP's proper drop-shadow. Correct in principle and did NOTHING in practice:
+    ///      it is gated behind the UNDERLAY_ON shader keyword, and the Mobile distance-field variant
+    ///      this game ships omits underlay, glow and bevel entirely. Enabling a keyword whose variant
+    ///      was never compiled fails silently. LogShader records the shader name once so this is
+    ///      answerable rather than re-guessed.
     ///
     /// #hud-legibility (default ON, but see below) raises alpha toward opaque. Kept because some
     ///   elements genuinely are translucent, but on measurement most of the HUD is already at alpha
@@ -44,7 +50,7 @@ namespace ChaseView.Features
     ///   and neither branch notices.
     ///
     ///   Note the legacy Outline component was never the problem: it draws offset COPIES behind the
-    ///   text and leaves the glyph itself alone, which is the behaviour TMP needed Underlay for.
+    ///   text and leaves the glyph alone, so it needs no dilation correction at all.
     ///
     /// THE COMPOUNDING TRAP, for the colour pass only
     ///   HUD apps rewrite their colours every frame from HUDAppManager.Update - AoADisplay evaluates
@@ -77,6 +83,7 @@ namespace ChaseView.Features
         private Color[] _written;   // what we last wrote, to tell the two apart
         private Object _cachedFor;  // the HUDAppManager the cache was built from
         private float _appliedShadow = -1f;
+        private static bool _loggedShader;
 
         private void Update()
         {
@@ -145,13 +152,7 @@ namespace ChaseView.Features
         private void ApplyShadow(float strength)
         {
             int tmp = 0, legacy = 0;
-
-            // TMP's underlay is a soft dark copy rendered BEHIND the glyph. Dilate spreads it outward
-            // past the glyph edge, softness blurs it into a halo rather than a hard drop shadow, and
-            // the offset stays at zero so the contrast lands on every side - a directional shadow
-            // leaves two edges of every digit as exposed as they were.
-            float dilate = strength * 0.4f;
-            var shadow = new Color(0f, 0f, 0f, 0.9f);
+            var dark = new Color(0f, 0f, 0f, 1f);
 
             for (int i = 0; i < _graphics.Length; i++)
             {
@@ -161,39 +162,37 @@ namespace ChaseView.Features
                 if (g is TMP_Text t)
                 {
                     Material m = t.fontMaterial;   // instances per label on first touch
+                    if (!_loggedShader) LogShader(m);
 
-                    // Belt and braces: an earlier build drove these, and a material instance lives as
-                    // long as the label does. Zero them on every apply so nothing lingers.
-                    m.SetFloat(ShaderUtilities.ID_OutlineWidth, 0f);
-                    m.SetFloat(ShaderUtilities.ID_FaceDilate, 0f);
+                    // #outline-dilate-must-equal-width
+                    //   TMP carves the outline INWARD from the face edge, so an outline alone erodes
+                    //   the glyph it is meant to protect. _FaceDilate pushes that edge back out.
+                    //
+                    //   The exact relationship, and the bug that cost a flight: with dilate d and
+                    //   width w, the face edge sits at +d and the outline band occupies +d-w to +d,
+                    //   leaving the coloured face reaching only to +d-w. For the face to keep its
+                    //   ORIGINAL extent you need d - w = 0, i.e. d == w, which puts the whole band
+                    //   outside the original glyph. An earlier build used d = w/2, eroding every
+                    //   glyph by half the outline width - which is why readability got monotonically
+                    //   WORSE as the setting rose and 0 was best.
+                    m.SetFloat(ShaderUtilities.ID_OutlineWidth, strength);
+                    m.SetFloat(ShaderUtilities.ID_FaceDilate, strength);
+                    m.SetColor(ShaderUtilities.ID_OutlineColor, dark);
 
-                    if (strength <= 0.001f)
-                    {
-                        m.DisableKeyword(ShaderUtilities.Keyword_Underlay);
-                        m.SetFloat(ShaderUtilities.ID_UnderlayDilate, 0f);
-                        m.SetColor(ShaderUtilities.ID_UnderlayColor, Color.clear);
-                    }
-                    else
-                    {
-                        // The shader branch is keyword-gated; setting the properties without this
-                        // does nothing at all and looks like the feature is broken.
-                        m.EnableKeyword(ShaderUtilities.Keyword_Underlay);
-                        m.SetColor(ShaderUtilities.ID_UnderlayColor, shadow);
-                        m.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 0f);
-                        m.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, 0f);
-                        m.SetFloat(ShaderUtilities.ID_UnderlayDilate, dilate);
-                        m.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.15f);
-                    }
+                    // Underlay would be the softer effect, but it is keyword-gated and the Mobile
+                    // distance-field shader omits it entirely - setting it produced no visible change
+                    // at all. Kept off rather than left half-configured.
+                    m.DisableKeyword(ShaderUtilities.Keyword_Underlay);
 
-                    // The underlay extends past the original glyph bounds; without this the mesh
-                    // padding still describes the bare glyph and the halo is clipped square.
+                    // The band extends past the original glyph bounds; without this the mesh padding
+                    // still describes the bare glyph and the edge is clipped square.
                     t.UpdateMeshPadding();
                     tmp++;
                 }
                 else if (g is Text legacyText)
                 {
-                    // Legacy Outline draws offset COPIES behind the text - it never shrinks the glyph,
-                    // so it was always the right effect here and needs no equivalent of the underlay.
+                    // Legacy Outline draws offset COPIES behind the text and never shrinks the glyph,
+                    // so it needs none of the dilation correction above.
                     var o = legacyText.GetComponent<Outline>();
                     if (strength <= 0.001f)
                     {
@@ -201,16 +200,29 @@ namespace ChaseView.Features
                         continue;
                     }
                     if (o == null) o = legacyText.gameObject.AddComponent<Outline>();
-                    o.effectColor = shadow;
-                    float d = Mathf.Max(1f, strength * 3f);
+                    o.effectColor = new Color(0f, 0f, 0f, 0.9f);
+                    float d = Mathf.Max(1f, strength * 6f);
                     o.effectDistance = new Vector2(d, -d);
                     legacy++;
                 }
-                // RawImage tapes and plain Images get nothing - a halo round a texture quad is a box.
+                // RawImage tapes and plain Images get nothing - a border round a texture quad is a box.
             }
 
             _appliedShadow = strength;
             Plugin.Log.LogInfo($"[ChaseCamera] HUD shadow {strength:0.##} applied to {tmp} TMP + {legacy} legacy");
+        }
+
+        /// <summary>
+        /// Logged once. If the edge still does nothing, the shader is the answer: the Mobile
+        /// distance-field variant supports outline but drops underlay, glow and bevel, and a sprite
+        /// or bitmap shader supports none of them.
+        /// </summary>
+        private static void LogShader(Material m)
+        {
+            _loggedShader = true;
+            Plugin.Log.LogInfo($"[ChaseCamera] TMP font shader '{m.shader.name}' "
+                             + $"outlineProp={m.HasProperty(ShaderUtilities.ID_OutlineWidth)} "
+                             + $"underlayProp={m.HasProperty(ShaderUtilities.ID_UnderlayColor)}");
         }
 
         /// <summary>
