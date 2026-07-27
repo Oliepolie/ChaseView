@@ -47,6 +47,8 @@ namespace ChaseView.Features
         private ConfigEntry<bool> _screenLockCompass;
         private ConfigEntry<float> _hudScale;
         private ConfigEntry<float> _hudTint;
+        private ConfigEntry<float> _hudOpacity;
+        private ConfigEntry<float> _hudBrightness;
         private ConfigEntry<KeyboardShortcut> _toggleKey;
         private ConfigEntry<bool> _trackIr;
         private ConfigEntry<float> _trackIrAmount;
@@ -94,11 +96,24 @@ namespace ChaseView.Features
               + "in toward the middle of the screen, above 1 makes them larger. Needs ScreenLockReadouts.",
                 new AcceptableValueRange<float>(0.5f, 2f), 8));
 
+            // #hud-legibility - act on the SYMBOLOGY first; see HudContrast for why this beats a tint.
+            _hudOpacity = config.Bind(Name, "HudOpacity", 0.6f, Cfg.Basic(
+                "How solid the chase HUD is drawn. 0 leaves the game's own transparency, 1 makes the "
+              + "symbology fully opaque so it holds up against a bright sky.",
+                new AcceptableValueRange<float>(0f, 1f), 9));
+
             // #hud-tint - the cockpit canopy darkens the world behind the HUD; chase has no canopy.
-            _hudTint = config.Bind(Name, "HudTint", 0.2f, Cfg.Basic(
-                "Darkens the view behind the chase HUD so the symbology reads against a bright sky, "
-              + "the way the cockpit canopy does. 0 turns it off.",
-                new AcceptableValueRange<float>(0f, 0.6f), 9));
+            // Ships OFF: it works, but dimming the whole screen to read four numbers is a heavy
+            // trade, and HudOpacity solves the same complaint without touching the world.
+            _hudTint = config.Bind(Name, "HudTint", 0f, Cfg.Basic(
+                "Optionally darkens the view behind the chase HUD, the way the cockpit canopy does. "
+              + "0 is off. Try HudOpacity first - this dims the whole screen.",
+                new AcceptableValueRange<float>(0f, 0.6f), 10));
+
+            _hudBrightness = config.Bind(Name, "HudBrightness", 1f, Cfg.Adv(
+                "Multiplies the HUD's colour. Above about 1.4 bright symbology clips toward white and "
+              + "starts losing the colour coding, so prefer HudOpacity.",
+                new AcceptableValueRange<float>(1f, 2f)));
 
             _inViewCycle = config.Bind(Name, "InViewCycle", true, Cfg.Basic(
                 "Put chase view in the Switch View cycle, right after the cockpit.", 0));
@@ -172,12 +187,16 @@ namespace ChaseView.Features
             ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             ScreenLockedReadouts.WantScale = _hudScale.Value;
             HudContrast.WantTint = _hudTint.Value;
+            HudContrast.WantOpacity = _hudOpacity.Value;
+            HudContrast.WantBrightness = _hudBrightness.Value;
             // Live-editable through ConfigurationManager: mirror later changes too, so toggling the
             // split mid-flight takes effect instead of needing a restart.
             _screenLockReadouts.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScreenLock = _screenLockReadouts.Value;
             _screenLockCompass.SettingChanged += (s2, e) => ScreenLockedReadouts.WantCompassLock = _screenLockCompass.Value;
             _hudScale.SettingChanged += (s2, e) => ScreenLockedReadouts.WantScale = _hudScale.Value;
             _hudTint.SettingChanged += (s2, e) => HudContrast.WantTint = _hudTint.Value;
+            _hudOpacity.SettingChanged += (s2, e) => HudContrast.WantOpacity = _hudOpacity.Value;
+            _hudBrightness.SettingChanged += (s2, e) => HudContrast.WantBrightness = _hudBrightness.Value;
 
             ShowHud = _showHud;
             HudInAllPositions = _hudInAllPositions;
@@ -203,6 +222,8 @@ namespace ChaseView.Features
             kv("ScreenLockCompass", _screenLockCompass.Value);
             kv("HudScale", _hudScale.Value);
             kv("HudTint", _hudTint.Value);
+            kv("HudOpacity", _hudOpacity.Value);
+            kv("HudBrightness", _hudBrightness.Value);
             kv("ToggleHudKey", _toggleKey.Value);
             kv("TrackIrInChase", _trackIr.Value);
             kv("TrackIrAmount", _trackIrAmount.Value);
