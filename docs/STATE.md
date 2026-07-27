@@ -99,25 +99,44 @@ WeaponPanel's colours are hardcoded and will not follow a user's theme. Cosmetic
   method body's tokens when it JITs, and `UpdateState_Post` ran fine — mouse look and roll follow
   both worked — which is exactly what a missing method would have prevented. So the break is fixed;
   only the offset composition in chase is untested. Re-check if you turn head tracking back on.
-- **NEXT RELEASE IS `1.1.0`, and nothing is published yet.** Decided 2026-07-27: rather than ship the
-  0.34.0 compatibility fix alone as 1.0.1, it goes out together with `HudScale` as 1.1.0 once the
-  scaling has been flown. **1.0.0 remains what NOMNOM serves and it does not work on 0.34.0**, so
-  this should not drift.
+- **ONE FULL RELEASE WHEN IT IS DONE — settled, stop reopening it.** Olie's call, 2026-07-27, made
+  twice: no interim 1.0.1 or 1.1.0. Sequence is **confirm the HUD readability work → perf pass →
+  ship**. The cost is understood and accepted: **1.0.0 remains what NOMNOM serves and it does not run
+  on 0.34.0** for the whole interval. Do not keep pitching an early release.
 - **Both manifests are STALE — they say `1.0.1` with the hash of a build that will never be
   published.** Regenerate `release/meta.json` and `release/ChaseView.json` at package time: version
   and fileName `1.1.0`, the `v1.1.0` download URL, and the sha256 of the actual zip. `gameVersion`
   is already correct at `0.34`.
-- **`HudScale` is deployed but not flown.** Check that below 1 draws the readouts inward and above 1
-  pushes them out, that the pitch ladder / waterline / reticle do NOT move with it, and that leaving
-  chase restores the cockpit HUD unscaled.
+- **HUD readability — `HudOutline` deployed, awaiting the flight that decides it.** Watch for
+  `HUD outline 0.2 applied to N TMP + M legacy` in the log; **N == 0 means it silently did nothing**
+  and needs a different hook. `HudScale` (flown, tuned to ~1.55) and `HudOpacity` are settled;
+  opacity measured as a near no-op because the HUD is already at alpha 1, which is recorded in the
+  build log line as "below full alpha".
 - Olie's README should probably say the G-force effects apply in chase. **His prose, so his call** —
   ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen
   server and does not exercise the client leg. Stated in the README.
-- **Performance**: chase spikes ~1% of frames past 16 ms vs ~0% elsewhere, but that was measured
-  against a 90 fps cap that pinned every mean. The `PerfProbe / Bypass` A/B was never run. To settle
-  it: raise `FrameRateLimit` first (a cap hides everything), then compare bypass on vs off in the
-  same place.
+- **Performance — the pass is next, and the harness is ready.** Chase spikes ~1% of frames past 16 ms
+  vs ~0% elsewhere, but that was measured against a 90 fps cap that pinned every mean, and the
+  `PerfProbe / Bypass` A/B was never run. Everything below is verified as of 2026-07-27:
+
+  1. **Uncapping takes TWO settings, not one.** Graphics options → Frame Rate Limit → unlimited
+     (`GraphicsHelper.SetFPSLimit` → `GameManager.TargetFrameRate`, `-1` = uncapped) **and VSync
+     OFF** (`GraphicsHelper.SetVSync` → `QualitySettings.vSyncCount`). Miss the second and the
+     monitor refresh pins every mean exactly as the 90 fps cap did — this is the trap that wasted
+     the last measurement.
+  2. **PerfProbe must be compiled in.** Comment out `<Compile Remove="Features\PerfProbe\**" />` in
+     the csproj. Confirmed to still build clean against 0.34.0 (checked 2026-07-27, then reverted).
+     `Diag.Bypass` has no other writer, so without PerfProbe there is no A/B at all.
+  3. **Method:** same sortie, same scene — cockpit vs chase gives the upper bound, then chase with
+     `Bypass` on vs off isolates our share of it.
+
+  New per-frame work added since the last measurement, in rough order of suspicion:
+  `HudContrast.LateUpdate` (walks ~50 cached Graphics), `ScreenLockedReadouts.Update`,
+  `HudContrast.Update`, `GForceEffects` (FixedUpdate, four lerps). The colour loop *should* be nearly
+  free on an already-opaque HUD because it writes nothing when the transform is a no-op, and a
+  skipped write means no `SetVerticesDirty` and no canvas rebuild — but that is reasoning, not a
+  measurement, and it is exactly what the probe is for.
 - The repo has **no LICENSE** — source-available, not open-source. Fine for NOMNOM (their clause is
   about visibility and non-obfuscation) and normal for the ecosystem, but nobody may legally fork it.
 - Olie's README says *"There is no targeting view, unless you switch back to your cockpit view."*
