@@ -239,6 +239,14 @@ namespace ChaseView.Features
             harmony.Patch(AccessTools.Method(typeof(CameraStateManager), nameof(CameraStateManager.SwitchState)),
                 prefix: Safe(typeof(Hooks), nameof(Hooks.SwitchState_Pre)));
 
+            // #gforce-not-a-cheat
+            //   Vanilla draws the G-force greyout in the cockpit ONLY, so making an external view
+            //   fightable would otherwise hand chase players a free pass on the visual and audio
+            //   handicap everyone else eats during a sustained pull. Not optional and not a Feature
+            //   of its own - see GForceEffects for the full argument.
+            harmony.Patch(AccessTools.Method(typeof(GLOC), nameof(GLOC.SimulateGLOC)),
+                postfix: Safe(typeof(GForceEffects), nameof(GForceEffects.SimulateGLOC_Post)));
+
             Plugin.HostObject.AddComponent<HotkeyPump>().Init(_toggleKey);
             Plugin.HostObject.AddComponent<ScreenLockedReadouts>();
         }

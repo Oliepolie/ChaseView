@@ -46,9 +46,16 @@ Each has a `#tag` in the source; grep for it to find the reasoning at the site.
 | `#scale-sentinel` | `_scale` starts at `-1f`. At exactly 1920×1080 the vanilla canvas scale is 1.0, so an initial `1f` made the first `SyncScale` early-out and the panel never got positioned. |
 | `#perf-treewalk` / `#perf-throttle` | No whole-hierarchy searches or string allocations per frame. |
 | `#turret-parallax` / `#turret-reticle` | Turrets aim at the *point* the camera looks at, not parallel to it; the crosshair projects that same convergence point rather than 10 km down the barrel. |
+| `#gforce-not-a-cheat` | The G-force greyout is re-applied in chase. Vanilla runs the whole physiology camera-independently but gates only the *visuals* on the cockpit, so an external view flew the run-up to G-LOC with clean picture and clean audio. **No config toggle** — a checkbox that removes a penalty is the cheat. Lives in the ChaseCamera folder so it cannot be dropped without dropping the camera. |
 
 ## Open
 
+- **`#gforce-not-a-cheat` is built and deployed but NOT yet flown** (v1.0.1, 2026-07-27). What to
+  check: pull sustained Gs in chase and confirm the picture desaturates, vignettes and the audio
+  muffles exactly as it does in the cockpit — then that it clears cleanly on switching away. Not
+  released; 1.0.0 is still what NOMNOM serves.
+- Olie's README should probably say the G-force effects apply in chase. **His prose, so his call** —
+  ask before editing.
 - **`TurretAimInChase` has never been tested on a real two-machine connection.** Hosting is a listen
   server and does not exercise the client leg. Stated in the README.
 - **Performance**: chase spikes ~1% of frames past 16 ms vs ~0% elsewhere, but that was measured

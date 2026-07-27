@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>ChaseView</AssemblyName>
     <RootNamespace>ChaseView</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
@@ -112,9 +112,21 @@
       <Private>false</Private>
     </Reference>
 
+    <!-- URP post-processing volumes. GForceEffects writes ColorAdjustments.saturation and
+         Vignette.intensity to reproduce the cockpit greyout in chase view. Universal.Runtime holds
+         the two effect types; Core.Runtime holds VolumeComponent and the ClampedFloatParameter that
+         their .value fields actually are, so BOTH are required to touch a single float. -->
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime">
+      <HintPath>$(ManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime">
+      <HintPath>$(ManagedDir)\Unity.RenderPipelines.Core.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
     <!-- Add when a feature actually needs them; an unused reference costs nothing but churn:
     <Reference Include="UnityEngine.AssetBundleModule"> ... only if we ever ship an asset (we aim not to)
-    <Reference Include="Unity.RenderPipelines.Universal.Runtime"> ... post-processing / URP volumes
     -->
   </ItemGroup>
 
