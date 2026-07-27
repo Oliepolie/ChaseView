@@ -1,13 +1,13 @@
 {
     "id": "ChaseView",
     "artifact": {
-        "fileName": "ChaseView-1.0.1.zip",
-        "version": "1.0.1",
+        "fileName": "ChaseView-1.1.0.zip",
+        "version": "1.1.0",
         "category": "release",
         "type": "plugin",
         "gameVersion": "0.34",
-        "downloadUrl": "https://github.com/Oliepolie/ChaseView/releases/download/v1.0.1/ChaseView-1.0.1.zip",
-        "hash": "sha256:6cc9c7c0b020cfb773bb5719cd8d4eff7cae51386b15fadbb3d51f64e9db05f0",
+        "downloadUrl": "https://github.com/Oliepolie/ChaseView/releases/download/v1.1.0/ChaseView-1.1.0.zip",
+        "hash": "sha256:974e573f6c7278ea9b6ce84c88831150614e9f397db1ce83bf392b65d54f1828",
         "extends": null,
         "dependencies": [],
         "incompatibilities": []

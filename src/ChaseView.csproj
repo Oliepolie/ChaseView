@@ -18,12 +18,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- PerfProbe is a development diagnostic and is NOT compiled into releases. The source stays in
-         the tree deliberately: the chase-vs-cockpit frame cost question is still open, and comment
-         this line out to build a measuring copy. Deleting it would mean rewriting it from scratch. -->
-    <!-- PERF PASS IN PROGRESS: PerfProbe IS COMPILED IN. Restore the line below before
-         building any release - `grep -rn PerfProbe src/*.csproj` must show it uncommented.
-    <Compile Remove="Features\PerfProbe\**" /> -->
+    <!-- PerfProbe is a development diagnostic and is NOT compiled into releases. Comment this line
+         out to build a measuring copy, and restore it before packaging.
+
+         The source stays in the tree even though the question it was built for is now ANSWERED
+         (2026-07-27: chase 8.24ms mean vs cockpit 8.59ms, so chase is the cheaper view - see
+         docs/STATE.md). Keeping it means the next perf question costs a rebuild instead of a
+         rewrite, and the bucket-by-camera-mode shape is the part that took the thinking. -->
+    <Compile Remove="Features\PerfProbe\**" />
   </ItemGroup>
 
   <ItemGroup>
