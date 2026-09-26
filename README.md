@@ -1,3 +1,7 @@
+# OUTDATED
+# JUST USE THIS
+# https://github.com/CarloApri/NO-ChaseCamPlus
+
 # ChaseView
 Chase style camera, complete with HUD, optional weapon select flavor graphics (and damage model); works with (probably) every aircraft.
 
